@@ -1,0 +1,15 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+websockets>=13
+pydantic>=2.7
+pydantic-settings>=2.4
+numpy>=1.26
+python-multipart>=0.0.9
+
+# ML stack — pinned to what `uni` already provides; adjust if env changes
+torch>=2.3
+
+# Dev
+pytest>=8.0
+ruff>=0.6
+black>=24.8

@@ -1,0 +1,9 @@
+{
+  "extends": "@stl/tsconfig/base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "declaration": true
+  },
+  "include": ["src", "definitions", "presets", "schemas"]
+}

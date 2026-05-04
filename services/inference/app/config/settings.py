@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="STL_", env_file=".env", extra="ignore")
+
+    protocol_version: str = "1.0.0"
+    canonical_sample_rate: int = 48000
+    canonical_channels: int = 1
+    chunk_size_default: int = 4800  # 100 ms at 48 kHz
+
+    models_dir: Path = Field(default=REPO_ROOT / "models")
+    beat_tracker_dir: Path = Field(default=REPO_ROOT / "models" / "beat-tracker")
+    skip_bart_dir: Path = Field(default=REPO_ROOT / "models" / "skip-bart")
+
+    log_level: str = "INFO"
+
+
+settings = Settings()

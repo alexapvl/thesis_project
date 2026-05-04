@@ -1,0 +1,31 @@
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Models (weights are placed manually; do not commit)
+models/**/weights/*
+!models/**/weights/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Env
+.env
+.env.local
+*.local

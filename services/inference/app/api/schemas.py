@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from typing import Annotated, Literal, Union
+
+from pydantic import BaseModel, Field
+
+
+class Envelope(BaseModel):
+    type: str
+    version: str
+    sessionId: str
+    timestampMs: float
+    sequence: int
+
+
+# ── Upstream ──────────────────────────────────────────────────────────────────
+
+
+class FileMetadata(BaseModel):
+    fileName: str
+    durationMs: float | None = None
+
+
+class SessionInit(Envelope):
+    type: Literal["session.init"]
+    sourceMode: Literal["file", "microphone"]
+    chunkSize: int
+    sampleRate: int
+    fileMetadata: FileMetadata | None = None
+    protocolVersion: str
+
+
+class AudioChunk(Envelope):
+    type: Literal["audio.chunk"]
+    startOffsetMs: float | None = None
+    playbackPositionMs: float | None = None
+    channels: Literal[1]
+    sampleRate: Literal[48000]
+    pcm: str  # base64 Float32 PCM
+
+
+class SessionSeek(Envelope):
+    type: Literal["session.seek"]
+    newPositionMs: float
+    resetInference: bool
+    sourceMode: Literal["file", "microphone"]
+
+
+class SessionStop(Envelope):
+    type: Literal["session.stop"]
+
+
+class ClientPing(Envelope):
+    type: Literal["client.ping"]
+
+
+UpstreamMessage = Annotated[
+    Union[SessionInit, AudioChunk, SessionSeek, SessionStop, ClientPing],
+    Field(discriminator="type"),
+]
+
+
+# ── Downstream ────────────────────────────────────────────────────────────────
+
+
+class SessionReady(Envelope):
+    type: Literal["session.ready"] = "session.ready"
+    protocolVersion: str
+
+
+class BeatUpdate(Envelope):
+    type: Literal["beat.update"] = "beat.update"
+    beatTimeMs: float
+    confidence: float | None = None
+
+
+class TempoUpdate(Envelope):
+    type: Literal["tempo.update"] = "tempo.update"
+    bpm: float
+    confidence: float | None = None
+
+
+class LightingUpdate(Envelope):
+    type: Literal["lighting.update"] = "lighting.update"
+    hue: float
+    value: float
+    beatPulse: float | None = None
+    intensity: float | None = None
+    confidence: float | None = None
+
+
+class InferenceStatus(Envelope):
+    type: Literal["inference.status"] = "inference.status"
+    state: Literal["idle", "warming", "running", "stalled", "error"]
+    detail: str | None = None
+
+
+class ServerError(Envelope):
+    type: Literal["server.error"] = "server.error"
+    code: str
+    message: str
+
+
+class ServerPong(Envelope):
+    type: Literal["server.pong"] = "server.pong"
