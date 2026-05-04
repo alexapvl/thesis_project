@@ -71,6 +71,24 @@ async def ws_endpoint(ws: WebSocket) -> None:
             mtype = msg.type
 
             if mtype == "session.init":
+                client_major = msg.protocolVersion.split(".")[0]
+                server_major = settings.protocol_version.split(".")[0]
+                if client_major != server_major:
+                    err = ServerError(
+                        version=settings.protocol_version,
+                        sessionId=msg.sessionId,
+                        timestampMs=now_ms(),
+                        sequence=next_seq(),
+                        code="protocol.versionMismatch",
+                        message=(
+                            f"client {msg.protocolVersion} incompatible with "
+                            f"server {settings.protocol_version}"
+                        ),
+                    )
+                    await send(err.model_dump())
+                    await ws.close(code=1008)
+                    return
+
                 session_id = msg.sessionId
                 log.info("session.init id=%s mode=%s", session_id, msg.sourceMode)
                 ready = SessionReady(
