@@ -240,6 +240,76 @@ kbd {
   font-style: italic;
 }
 
+/* editor row & detail */
+.editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.editor-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.editor-detail {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editor-shortcuts {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.editor-shortcuts ul {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+}
+
+.editor-shortcuts li {
+  margin-bottom: 2px;
+}
+
+/* persistence */
+.persistence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.persistence-err {
+  color: #fca5a5;
+  font-size: 11px;
+}
+
+/* catalog rows */
+.catalog-row {
+  list-style: none;
+  cursor: grab;
+}
+
+.catalog-row:active {
+  cursor: grabbing;
+}
+
+.catalog-tip {
+  font-size: 11px;
+  color: #475569;
+  font-style: italic;
+}
+
 /* debug */
 .debug-panel {
   display: flex;
