@@ -47,6 +47,8 @@ type Actions = {
   transportSetLatency: (latencyMs: number | null) => void;
 
   audioSetGraphReady: (ready: boolean, contextSampleRate: number | null) => void;
+  audioBumpChunkCount: () => void;
+  audioResetChunkCount: () => void;
 
   playbackSetMode: (mode: PlaybackMode) => void;
   playbackSetFile: (fileName: string, durationMs: number | null) => void;
@@ -97,7 +99,7 @@ function pushHistory(history: HistoryState, prev: SceneDocument): HistoryState {
 export const useStore = create<State & Actions>()(
   subscribeWithSelector((set, get) => ({
     transport: { status: 'disconnected', latencyMs: null, lastError: null },
-    audio: { contextSampleRate: null, graphReady: false },
+    audio: { contextSampleRate: null, graphReady: false, chunksEmitted: 0, lastChunkAtMs: null },
     playback: {
       mode: 'file',
       isPlaying: false,
@@ -120,7 +122,17 @@ export const useStore = create<State & Actions>()(
       set((s) => ({ transport: { ...s.transport, latencyMs } })),
 
     audioSetGraphReady: (graphReady, contextSampleRate) =>
-      set(() => ({ audio: { graphReady, contextSampleRate } })),
+      set((s) => ({ audio: { ...s.audio, graphReady, contextSampleRate } })),
+    audioBumpChunkCount: () =>
+      set((s) => ({
+        audio: {
+          ...s.audio,
+          chunksEmitted: s.audio.chunksEmitted + 1,
+          lastChunkAtMs: Date.now(),
+        },
+      })),
+    audioResetChunkCount: () =>
+      set((s) => ({ audio: { ...s.audio, chunksEmitted: 0, lastChunkAtMs: null } })),
 
     playbackSetMode: (mode) => set((s) => ({ playback: { ...s.playback, mode } })),
     playbackSetFile: (fileName, durationMs) =>

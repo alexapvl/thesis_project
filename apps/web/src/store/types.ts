@@ -11,6 +11,8 @@ export type TransportState = {
 export type AudioState = {
   contextSampleRate: number | null;
   graphReady: boolean;
+  chunksEmitted: number;
+  lastChunkAtMs: number | null;
 };
 
 export type PlaybackMode = 'file' | 'microphone';

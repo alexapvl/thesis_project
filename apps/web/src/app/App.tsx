@@ -1,5 +1,6 @@
 import { FileUpload } from '@/features/audio-file-session/FileUpload';
 import { PlaybackControls } from '@/features/playback-controls/PlaybackControls';
+import { MicToggle } from '@/features/microphone-session/MicToggle';
 import { StatusBar } from '@/features/inference-status/StatusBar';
 import { FixtureCatalog } from '@/features/fixture-catalog/FixtureCatalog';
 import { SceneEditorPanel } from '@/features/scene-editor/SceneEditorPanel';
@@ -9,11 +10,13 @@ import { useAutosave } from '@/features/persistence/useAutosave';
 import { useHydrate } from '@/features/persistence/useHydrate';
 import { DebugPanel } from '@/components/DebugPanel';
 import { SceneCanvas } from '@/scene/editor/SceneCanvas';
+import { useAudioBoot } from '@/audio/useAudioBoot';
 
 export function App() {
   useHydrate();
   useAutosave();
   useSceneShortcuts();
+  useAudioBoot();
 
   return (
     <div className="app">
@@ -21,6 +24,7 @@ export function App() {
         <span className="brand">sound-to-light</span>
         <FileUpload />
         <PlaybackControls />
+        <MicToggle />
         <PersistenceControls />
         <StatusBar />
       </header>

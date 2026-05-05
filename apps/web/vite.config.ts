@@ -9,6 +9,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  build: {
+    // AudioWorklet modules must be served as standalone files. Browsers do
+    // not reliably support data: URLs in audioWorklet.addModule().
+    assetsInlineLimit: (filePath) => (filePath.includes('chunk-worklet') ? false : undefined),
+  },
   server: {
     port: 5173,
     proxy: {
