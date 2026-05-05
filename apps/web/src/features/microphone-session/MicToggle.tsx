@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '@/store';
 import { audioController } from '@/audio/audioController';
+import { sessionController } from '@/transport';
 
 export function MicToggle() {
   const mode = useStore((s) => s.playback.mode);
@@ -18,6 +19,7 @@ export function MicToggle() {
     try {
       if (isMic) {
         await audioController.stopMicrophone();
+        sessionController.stopSession();
         playbackSetMode('file');
         debugLog('info', 'microphone stopped');
       } else {
@@ -26,6 +28,7 @@ export function MicToggle() {
         playbackSetPlaying(false);
         audioResetChunkCount();
         audioSetGraphReady(true, 48000);
+        sessionController.startSession('microphone');
         debugLog('info', 'microphone started');
       }
     } catch (e) {

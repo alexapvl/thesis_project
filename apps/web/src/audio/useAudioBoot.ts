@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from '@/store';
+import { sessionController } from '@/transport';
 import { audioController } from './audioController';
 import { CANONICAL_SAMPLE_RATE } from './types';
 
@@ -14,8 +15,10 @@ export function useAudioBoot() {
   const playbackSetPlaying = useStore((s) => s.playbackSetPlaying);
 
   useEffect(() => {
-    audioController.setChunkHandler(() => {
+    audioController.setChunkHandler((msg) => {
       audioBumpChunkCount();
+      const { mode, positionMs } = useStore.getState().playback;
+      sessionController.pushChunk(msg.pcm, mode === 'file' ? positionMs : null);
     });
     audioController.setPositionHandler((ms) => {
       playbackSetPosition(ms);

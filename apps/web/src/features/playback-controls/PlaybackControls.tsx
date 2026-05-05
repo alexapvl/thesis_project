@@ -1,5 +1,6 @@
 import { useStore } from '@/store';
 import { audioController } from '@/audio/audioController';
+import { sessionController } from '@/transport';
 
 function fmt(ms: number | null): string {
   if (ms == null) return '—';
@@ -34,6 +35,7 @@ export function PlaybackControls() {
   async function onSeek(ev: React.ChangeEvent<HTMLInputElement>) {
     const ms = Number(ev.target.value);
     await audioController.seek(ms);
+    sessionController.seek(ms);
     // Position handler will push the new position into the store.
   }
 

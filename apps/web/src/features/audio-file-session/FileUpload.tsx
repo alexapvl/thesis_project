@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '@/store';
 import { audioController } from '@/audio/audioController';
+import { sessionController } from '@/transport';
 
 const ACCEPTED = '.wav,.mp3,.flac,.ogg,.m4a,audio/*';
 
@@ -28,6 +29,7 @@ export function FileUpload() {
       playbackSetPlaying(false);
       audioResetChunkCount();
       audioSetGraphReady(true, 48000);
+      sessionController.startSession('file', { fileName: file.name, durationMs });
       debugLog('info', `decoded ${file.name}: ${(durationMs / 1000).toFixed(2)}s`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -1,21 +1,15 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from app.api.schemas import (
-    InferenceStatus,
-    LightingUpdate,
-    SessionReady,
-    ServerError,
-    ServerPong,
-    UpstreamMessage,
-)
+from app.api.schemas import UpstreamMessage
 from app.config.settings import settings
+from app.pipeline.event_builder import server_error, server_pong
+from app.services.session_manager import session_manager
 
 log = logging.getLogger("stl.ws")
 logging.basicConfig(level=settings.log_level)
@@ -31,6 +25,7 @@ async def healthz() -> dict[str, Any]:
         "ok": True,
         "protocolVersion": settings.protocol_version,
         "sampleRate": settings.canonical_sample_rate,
+        "activeSessions": session_manager.active_count(),
     }
 
 
@@ -38,18 +33,15 @@ async def healthz() -> dict[str, Any]:
 async def ws_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     session_id: str | None = None
-    seq = 0
+    fallback_seq = 0
 
-    def now_ms() -> float:
-        return time.time() * 1000.0
+    def next_fallback_seq() -> int:
+        nonlocal fallback_seq
+        fallback_seq += 1
+        return fallback_seq
 
-    def next_seq() -> int:
-        nonlocal seq
-        seq += 1
-        return seq
-
-    async def send(payload: dict[str, Any]) -> None:
-        await ws.send_json(payload)
+    async def send(envelope: BaseModel) -> None:
+        await ws.send_json(envelope.model_dump())
 
     try:
         while True:
@@ -57,15 +49,13 @@ async def ws_endpoint(ws: WebSocket) -> None:
             try:
                 msg = _upstream_adapter.validate_python(raw)
             except ValidationError as e:
-                err = ServerError(
-                    version=settings.protocol_version,
-                    sessionId=session_id or "",
-                    timestampMs=now_ms(),
-                    sequence=next_seq(),
-                    code="protocol.invalid",
-                    message=str(e),
+                err = server_error(
+                    session_id or "",
+                    next_fallback_seq(),
+                    "protocol.invalid",
+                    str(e),
                 )
-                await send(err.model_dump())
+                await send(err)
                 continue
 
             mtype = msg.type
@@ -74,80 +64,70 @@ async def ws_endpoint(ws: WebSocket) -> None:
                 client_major = msg.protocolVersion.split(".")[0]
                 server_major = settings.protocol_version.split(".")[0]
                 if client_major != server_major:
-                    err = ServerError(
-                        version=settings.protocol_version,
-                        sessionId=msg.sessionId,
-                        timestampMs=now_ms(),
-                        sequence=next_seq(),
-                        code="protocol.versionMismatch",
-                        message=(
-                            f"client {msg.protocolVersion} incompatible with "
-                            f"server {settings.protocol_version}"
-                        ),
+                    err = server_error(
+                        msg.sessionId,
+                        next_fallback_seq(),
+                        "protocol.versionMismatch",
+                        f"client {msg.protocolVersion} incompatible with "
+                        f"server {settings.protocol_version}",
                     )
-                    await send(err.model_dump())
+                    await send(err)
                     await ws.close(code=1008)
                     return
 
+                # Replace any prior session bound to this socket.
+                if session_id is not None and session_id != msg.sessionId:
+                    session_manager.drop(session_id)
+
                 session_id = msg.sessionId
+                pipeline = session_manager.create(session_id)
                 log.info("session.init id=%s mode=%s", session_id, msg.sourceMode)
-                ready = SessionReady(
-                    version=settings.protocol_version,
-                    sessionId=session_id,
-                    timestampMs=now_ms(),
-                    sequence=next_seq(),
-                    protocolVersion=settings.protocol_version,
-                )
-                await send(ready.model_dump())
-                idle = InferenceStatus(
-                    version=settings.protocol_version,
-                    sessionId=session_id,
-                    timestampMs=now_ms(),
-                    sequence=next_seq(),
-                    state="idle",
-                    detail="adapters not yet wired",
-                )
-                await send(idle.model_dump())
+                for env in pipeline.on_session_init(msg):
+                    await send(env)
 
             elif mtype == "audio.chunk":
-                # TODO(pipeline): hand off to session pipeline / adapters.
-                # Stub: emit a synthetic lighting frame so the frontend has something to draw.
                 if session_id is None:
                     continue
-                light = LightingUpdate(
-                    version=settings.protocol_version,
-                    sessionId=session_id,
-                    timestampMs=now_ms(),
-                    sequence=next_seq(),
-                    hue=(msg.sequence * 7) % 360,
-                    value=0.6,
-                    beatPulse=None,
-                    intensity=0.6,
-                    confidence=None,
-                )
-                await send(light.model_dump())
+                pipeline = session_manager.get(session_id)
+                if pipeline is None:
+                    continue
+                for env in pipeline.on_audio_chunk(msg):
+                    await send(env)
 
             elif mtype == "session.seek":
+                if session_id is None:
+                    continue
+                pipeline = session_manager.get(session_id)
+                if pipeline is None:
+                    continue
                 log.info(
                     "session.seek id=%s newMs=%.1f reset=%s",
                     session_id,
                     msg.newPositionMs,
                     msg.resetInference,
                 )
-                # TODO(pipeline): reset inference context for this session.
+                for env in pipeline.on_seek(msg):
+                    await send(env)
 
             elif mtype == "session.stop":
                 log.info("session.stop id=%s", session_id)
+                if session_id is not None:
+                    session_manager.drop(session_id)
+                    session_id = None
                 break
 
             elif mtype == "client.ping":
-                pong = ServerPong(
-                    version=settings.protocol_version,
-                    sessionId=session_id or msg.sessionId,
-                    timestampMs=now_ms(),
-                    sequence=next_seq(),
+                sid = session_id or msg.sessionId
+                pipeline = session_manager.get(sid) if session_id else None
+                seq = (
+                    pipeline.state.next_seq()
+                    if pipeline is not None and pipeline.state is not None
+                    else next_fallback_seq()
                 )
-                await send(pong.model_dump())
+                await send(server_pong(sid, seq))
 
     except WebSocketDisconnect:
         log.info("client disconnected id=%s", session_id)
+    finally:
+        if session_id is not None:
+            session_manager.drop(session_id)

@@ -11,12 +11,14 @@ import { useHydrate } from '@/features/persistence/useHydrate';
 import { DebugPanel } from '@/components/DebugPanel';
 import { SceneCanvas } from '@/scene/editor/SceneCanvas';
 import { useAudioBoot } from '@/audio/useAudioBoot';
+import { useTransportBoot } from '@/transport';
 
 export function App() {
   useHydrate();
   useAutosave();
   useSceneShortcuts();
   useAudioBoot();
+  useTransportBoot();
 
   return (
     <div className="app">
@@ -40,9 +42,7 @@ export function App() {
           <DebugPanel />
         </aside>
       </main>
-      <footer className="bottombar">
-        v0 scaffold · file flow first · transport not yet connected
-      </footer>
+      <footer className="bottombar">v0 scaffold · file flow first</footer>
     </div>
   );
 }
