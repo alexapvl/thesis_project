@@ -37,7 +37,12 @@ DEFAULT_BUFFER_BYTES = 4 * 48_000 * 4
 
 # Emit a synthetic lighting frame every N chunks so the stream has visible motion.
 LIGHTING_EMIT_EVERY = 1
-SYNTHETIC_BPM = 120.0
+
+# Window of recent beat times used for BPM estimation.
+TEMPO_WINDOW_SIZE = 8
+TEMPO_MIN_BEATS = 4
+TEMPO_MIN_BPM = 40.0
+TEMPO_MAX_BPM = 220.0
 
 
 DownstreamEnvelope = SessionReady | BeatUpdate | TempoUpdate | LightingUpdate | InferenceStatus
@@ -55,7 +60,8 @@ class SessionPipeline:
         self._skip = skip_bart
         self._state: SessionState | None = None
         self._buffer = AudioRingBuffer(DEFAULT_BUFFER_BYTES)
-        self._tempo_emitted = False
+        self._beat_history_ms: list[float] = []
+        self._last_emitted_bpm: float | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -72,7 +78,8 @@ class SessionPipeline:
         self._beat.reset()
         self._skip.load()
         self._skip.reset()
-        self._tempo_emitted = False
+        self._beat_history_ms = []
+        self._last_emitted_bpm = None
 
         out: list[DownstreamEnvelope] = [
             session_ready(msg.sessionId, self._state.next_seq()),
@@ -80,7 +87,7 @@ class SessionPipeline:
                 msg.sessionId,
                 self._state.next_seq(),
                 "idle",
-                detail="mock adapters wired",
+                detail=f"adapters ready: beat={type(self._beat).__name__}",
             ),
         ]
         return out
@@ -93,7 +100,8 @@ class SessionPipeline:
             self._skip.reset()
             self._buffer.reset()
             self._state.reset_inference(msg.newPositionMs)
-            self._tempo_emitted = False
+            self._beat_history_ms = []
+            self._last_emitted_bpm = None
             return [
                 inference_status(
                     self._state.config.session_id,
@@ -143,6 +151,7 @@ class SessionPipeline:
 
         # Beat tracker drain.
         self._beat.ingest(chunk)
+        new_beats: list[float] = []
         for ev in self._beat.get_events():
             out.append(
                 beat_update(
@@ -153,18 +162,23 @@ class SessionPipeline:
                 )
             )
             state.last_beat_emit_seq = state.out_sequence
+            new_beats.append(ev.beat_time_ms)
 
-        # First beat → also emit a synthetic tempo update so frontend BPM appears.
-        if not self._tempo_emitted and state.last_beat_emit_seq != -1:
-            out.append(
-                tempo_update(
-                    state.config.session_id,
-                    state.next_seq(),
-                    bpm=SYNTHETIC_BPM,
-                    confidence=0.5,
+        if new_beats:
+            self._beat_history_ms.extend(new_beats)
+            if len(self._beat_history_ms) > TEMPO_WINDOW_SIZE:
+                self._beat_history_ms = self._beat_history_ms[-TEMPO_WINDOW_SIZE:]
+            bpm = _estimate_bpm(self._beat_history_ms)
+            if bpm is not None and self._should_emit_bpm(bpm):
+                out.append(
+                    tempo_update(
+                        state.config.session_id,
+                        state.next_seq(),
+                        bpm=bpm,
+                        confidence=0.7,
+                    )
                 )
-            )
-            self._tempo_emitted = True
+                self._last_emitted_bpm = bpm
 
         # Synthetic lighting frame derived from chunk index. Replaced when the
         # real Skip-BART adapter lands (Step 10).
@@ -187,3 +201,26 @@ class SessionPipeline:
     @property
     def state(self) -> SessionState | None:
         return self._state
+
+    def _should_emit_bpm(self, bpm: float) -> bool:
+        if self._last_emitted_bpm is None:
+            return True
+        # Throttle: emit only when BPM moves more than 0.5 — otherwise the
+        # frontend gets a tempo.update on every beat.
+        return abs(bpm - self._last_emitted_bpm) > 0.5
+
+
+def _estimate_bpm(beat_times_ms: list[float]) -> float | None:
+    if len(beat_times_ms) < TEMPO_MIN_BEATS:
+        return None
+    intervals = [b - a for a, b in zip(beat_times_ms, beat_times_ms[1:]) if b > a]
+    if not intervals:
+        return None
+    intervals.sort()
+    median = intervals[len(intervals) // 2]
+    if median <= 0:
+        return None
+    bpm = 60_000.0 / median
+    if bpm < TEMPO_MIN_BPM or bpm > TEMPO_MAX_BPM:
+        return None
+    return bpm

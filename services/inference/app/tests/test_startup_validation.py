@@ -59,17 +59,22 @@ def test_require_real_models_blocks_on_warnings(
     assert issues_block_startup(issues) is True
 
 
-def test_resolve_adapters_reports_kind(isolated_models: Path) -> None:
+def test_resolve_adapters_reports_kind(
+    isolated_models: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     for d in (settings.beat_tracker_dir, settings.skip_bart_dir):
         (d / "weights").mkdir(parents=True)
+
+    # Force the mock path so the test does not depend on BeatNet being
+    # importable.
+    monkeypatch.setattr(settings, "use_real_beat_tracker", False)
     adapters = resolve_adapters()
     assert adapters.beat_tracker_kind == "mock"
     assert adapters.skip_bart_kind == "mock"
 
-    (settings.beat_tracker_dir / "weights" / "fake.bin").write_bytes(b"x")
+    (settings.skip_bart_dir / "weights" / "fake.bin").write_bytes(b"x")
     adapters = resolve_adapters()
-    assert adapters.beat_tracker_kind == "real-pending"
-    assert adapters.skip_bart_kind == "mock"
+    assert adapters.skip_bart_kind == "real-pending"
 
 
 def test_validate_setup_against_real_layout() -> None:

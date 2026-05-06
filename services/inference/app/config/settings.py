@@ -26,5 +26,10 @@ class Settings(BaseSettings):
     # (v1 default), the service runs on mock adapters and only logs warnings.
     require_real_models: bool = False
 
+    # When true (default), the model registry tries to load BeatNet for beat
+    # tracking; on import failure it falls back to the mock adapter. Set
+    # STL_USE_REAL_BEAT_TRACKER=false to force the mock (used by CI / tests).
+    use_real_beat_tracker: bool = True
+
 
 settings = Settings()

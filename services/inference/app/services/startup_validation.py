@@ -20,7 +20,9 @@ class ValidationIssue:
     message: str
 
 
-def _check_dir(path: Path, label: str) -> list[ValidationIssue]:
+def _check_dir(
+    path: Path, label: str, *, expect_weights: bool = True
+) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     if not path.exists():
         issues.append(
@@ -37,7 +39,7 @@ def _check_dir(path: Path, label: str) -> list[ValidationIssue]:
             )
         )
         return issues
-    if not has_weights(weights):
+    if expect_weights and not has_weights(weights):
         issues.append(
             ValidationIssue(
                 "warning",
@@ -59,8 +61,11 @@ def validate_setup() -> list[ValidationIssue]:
             )
         )
         return issues
-    issues += _check_dir(settings.beat_tracker_dir, "beat-tracker")
-    issues += _check_dir(settings.skip_bart_dir, "skip-bart")
+    # BeatNet ships its checkpoints inside the wheel, so we only require the
+    # directory to exist (kept as the home for future custom checkpoints).
+    # Skip-BART weights are placed manually and *do* gate the real adapter.
+    issues += _check_dir(settings.beat_tracker_dir, "beat-tracker", expect_weights=False)
+    issues += _check_dir(settings.skip_bart_dir, "skip-bart", expect_weights=True)
     return issues
 
 

@@ -8,6 +8,19 @@ python-multipart>=0.0.9
 
 # ML stack — pinned to what `uni` already provides; adjust if env changes
 torch>=2.3
+librosa>=0.10
+scipy>=1.13
+
+# Real-time beat tracking (PLAN step 9). madmom upstream PyPI is broken on
+# Python 3.11; install master from git. BeatNet pulls pyaudio for its mic
+# stream mode — we never use that, but the import is unconditional, so
+# pyaudio must be installable (requires portaudio system lib on macOS:
+# `brew install portaudio`).
+#
+# Install with: pip install --no-build-isolation -r requirements.txt
+BeatNet>=1.1.1
+madmom @ git+https://github.com/CPJKU/madmom.git
+pyaudio>=0.2.14
 
 # Dev
 pytest>=8.0
