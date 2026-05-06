@@ -1,49 +1,116 @@
-"""Verify model setup: paths exist, imports work, adapters load.
+"""Verify model setup end-to-end.
 
-Exits non-zero on any failure with a clear message.
+Steps:
+ 1. validate model directory layout (errors fail; empty weights warn).
+ 2. import torch.
+ 3. resolve adapters via the model registry.
+ 4. drive one synthetic chunk through SessionPipeline and check downstream
+    envelopes are produced.
+
+Exits 0 on success, 1 on any error. Warnings do not fail the script unless
+STL_REQUIRE_REAL_MODELS=true.
+
 Run:  python app/scripts/verify_models.py
 """
 
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
 # Allow `python app/scripts/verify_models.py` from services/inference.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from app.api.schemas import (  # noqa: E402
+    AudioChunk,
+    LightingUpdate,
+    SessionInit,
+    SessionReady,
+)
 from app.config.settings import settings  # noqa: E402
+from app.pipeline.session_pipeline import SessionPipeline  # noqa: E402
+from app.services.model_registry import resolve_adapters  # noqa: E402
+from app.services.startup_validation import (  # noqa: E402
+    issues_block_startup,
+    validate_setup,
+)
 
 
-def check_dir(path: Path, label: str) -> list[str]:
-    errs: list[str] = []
-    if not path.exists():
-        errs.append(f"missing {label}: {path}")
-        return errs
-    weights = path / "weights"
-    if not weights.exists() or not any(weights.iterdir()):
-        errs.append(f"{label}: weights/ is empty (place files in {weights})")
-    return errs
+def _check_layout() -> int:
+    print(f"models_dir: {settings.models_dir}")
+    issues = validate_setup()
+    for i in issues:
+        marker = "ERROR" if i.severity == "error" else "warn"
+        print(f"  [{marker}] {i.code}: {i.message}")
+    if issues_block_startup(issues):
+        print("FAIL: model setup blocks startup")
+        return 1
+    return 0
+
+
+def _check_torch() -> int:
+    try:
+        import torch  # noqa: F401
+    except ImportError as e:  # pragma: no cover
+        print(f"FAIL: torch import failed: {e}")
+        return 1
+    print("torch import: OK")
+    return 0
+
+
+def _dry_run() -> int:
+    adapters = resolve_adapters()
+    print(f"adapters: beat={adapters.beat_tracker_kind} skip-bart={adapters.skip_bart_kind}")
+
+    pipeline = SessionPipeline(adapters.beat_tracker, adapters.skip_bart)
+    init_envs = pipeline.on_session_init(
+        SessionInit(
+            type="session.init",
+            version=settings.protocol_version,
+            sessionId="verify",
+            timestampMs=0.0,
+            sequence=1,
+            sourceMode="file",
+            chunkSize=2048,
+            sampleRate=settings.canonical_sample_rate,
+            protocolVersion=settings.protocol_version,
+            fileMetadata=None,
+        )
+    )
+    if not any(isinstance(e, SessionReady) for e in init_envs):
+        print("FAIL: pipeline did not emit session.ready")
+        return 1
+
+    pcm_b64 = base64.b64encode(b"\x00\x00\x00\x00" * 2048).decode("ascii")
+    chunk_envs = pipeline.on_audio_chunk(
+        AudioChunk(
+            type="audio.chunk",
+            version=settings.protocol_version,
+            sessionId="verify",
+            timestampMs=0.0,
+            sequence=1,
+            startOffsetMs=None,
+            playbackPositionMs=0.0,
+            channels=1,
+            sampleRate=48000,
+            pcm=pcm_b64,
+        )
+    )
+    if not any(isinstance(e, LightingUpdate) for e in chunk_envs):
+        print("FAIL: pipeline did not emit lighting.update for a chunk")
+        return 1
+    print(f"dry-run: OK ({len(chunk_envs)} downstream envelope(s) on first chunk)")
+    return 0
 
 
 def main() -> int:
-    print(f"models_dir: {settings.models_dir}")
-    errs: list[str] = []
-    errs += check_dir(settings.beat_tracker_dir, "beat-tracker")
-    errs += check_dir(settings.skip_bart_dir, "skip-bart")
-
-    try:
-        import torch  # noqa: F401
-        print("torch import: OK")
-    except ImportError as e:  # pragma: no cover
-        errs.append(f"torch import failed: {e}")
-
-    if errs:
-        print("\nFAIL")
-        for e in errs:
-            print(f"  - {e}")
-        return 1
-
+    if (rc := _check_layout()) != 0:
+        return rc
+    if (rc := _check_torch()) != 0:
+        return rc
+    if (rc := _dry_run()) != 0:
+        return rc
     print("\nOK")
     return 0
 

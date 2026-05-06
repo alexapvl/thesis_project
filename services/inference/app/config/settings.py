@@ -22,5 +22,9 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    # When true, startup aborts if real model weights are missing. When false
+    # (v1 default), the service runs on mock adapters and only logs warnings.
+    require_real_models: bool = False
+
 
 settings = Settings()

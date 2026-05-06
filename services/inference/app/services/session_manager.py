@@ -7,8 +7,8 @@ stable seam.
 
 from __future__ import annotations
 
-from app.adapters.mock import MockBeatTracker, MockSkipBart
 from app.pipeline.session_pipeline import SessionPipeline
+from app.services.model_registry import resolve_adapters
 
 
 class SessionManager:
@@ -16,7 +16,8 @@ class SessionManager:
         self._pipelines: dict[str, SessionPipeline] = {}
 
     def create(self, session_id: str) -> SessionPipeline:
-        pipeline = SessionPipeline(MockBeatTracker(), MockSkipBart())
+        adapters = resolve_adapters()
+        pipeline = SessionPipeline(adapters.beat_tracker, adapters.skip_bart)
         self._pipelines[session_id] = pipeline
         return pipeline
 

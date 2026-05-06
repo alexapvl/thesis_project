@@ -3,18 +3,45 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from app.api.schemas import UpstreamMessage
 from app.config.settings import settings
 from app.pipeline.event_builder import server_error, server_pong
+from app.services.model_registry import resolve_adapters
 from app.services.session_manager import session_manager
+from app.services.startup_validation import issues_block_startup, validate_setup
 
 log = logging.getLogger("stl.ws")
 logging.basicConfig(level=settings.log_level)
 
-app = FastAPI(title="sound-to-light inference", version="0.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    issues = validate_setup()
+    for issue in issues:
+        if issue.severity == "error":
+            log.error("startup %s: %s", issue.code, issue.message)
+        else:
+            log.warning("startup %s: %s", issue.code, issue.message)
+    if issues_block_startup(issues):
+        raise RuntimeError(
+            "model setup validation failed; "
+            "set STL_REQUIRE_REAL_MODELS=false to run on mock adapters"
+        )
+    adapters = resolve_adapters()
+    log.info(
+        "adapters resolved: beat=%s skip-bart=%s",
+        adapters.beat_tracker_kind,
+        adapters.skip_bart_kind,
+    )
+    yield
+
+
+app = FastAPI(title="sound-to-light inference", version="0.0.0", lifespan=lifespan)
 
 _upstream_adapter: TypeAdapter[UpstreamMessage] = TypeAdapter(UpstreamMessage)
 
