@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import { useStore } from '@/store';
 import { FixtureRenderer } from '@/scene/fixtures/FixtureRenderer';
+import { SmoothedLightingProvider } from '@/scene/mappers/SmoothedLightingProvider';
 import { PlacementModeController } from './PlacementModeController';
 import { DragPlacementController } from './DragPlacementController';
 import { TransformHandles } from './TransformHandles';
@@ -39,7 +40,9 @@ export function SceneCanvas() {
         <meshStandardMaterial color="#0b1220" />
       </mesh>
 
-      <FixtureRenderer />
+      <SmoothedLightingProvider>
+        <FixtureRenderer />
+      </SmoothedLightingProvider>
 
       <PlacementModeController />
       <DragPlacementController />
