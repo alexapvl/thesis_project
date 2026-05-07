@@ -31,6 +31,7 @@ from app.pipeline.event_builder import (
     tempo_update,
 )
 from app.pipeline.session_state import SessionState
+from app.utils.profiling import stage_timer
 
 # Cap rolling buffer at ~4 s of mono float32 @ 48 kHz = 4 * 48000 * 4 ≈ 768 KB.
 DEFAULT_BUFFER_BYTES = 4 * 48_000 * 4
@@ -151,9 +152,12 @@ class SessionPipeline:
         out: list[DownstreamEnvelope] = []
 
         # Beat tracker drain.
-        self._beat.ingest(chunk)
+        with stage_timer("beat.ingest"):
+            self._beat.ingest(chunk)
         new_beats: list[float] = []
-        for ev in self._beat.get_events():
+        with stage_timer("beat.drain"):
+            beat_events = list(self._beat.get_events())
+        for ev in beat_events:
             out.append(
                 beat_update(
                     state.config.session_id,
@@ -184,8 +188,11 @@ class SessionPipeline:
         # Skip-BART (or mock) drain. Real adapter buffers internally and emits
         # frames in bursts whenever its inference window fires; the mock emits
         # one frame per ingested chunk.
-        self._skip.ingest(chunk)
-        for pred in self._skip.get_predictions():
+        with stage_timer("skip.ingest"):
+            self._skip.ingest(chunk)
+        with stage_timer("skip.drain"):
+            predictions = list(self._skip.get_predictions())
+        for pred in predictions:
             out.append(
                 lighting_update(
                     state.config.session_id,
