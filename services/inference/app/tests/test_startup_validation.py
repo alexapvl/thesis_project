@@ -19,6 +19,7 @@ def isolated_models(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(settings, "beat_tracker_dir", tmp_path / "beat-tracker")
     monkeypatch.setattr(settings, "skip_bart_dir", tmp_path / "skip-bart")
     monkeypatch.setattr(settings, "require_real_models", False)
+    monkeypatch.setattr(settings, "use_real_skip_bart", False)
     return tmp_path
 
 

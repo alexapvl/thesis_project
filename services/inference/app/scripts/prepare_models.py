@@ -43,11 +43,31 @@ def _warm_beatnet() -> None:
     print("BeatNet ready.")
 
 
+def _print_skipbart_hint() -> None:
+    weights = settings.skip_bart_dir / "weights"
+    needed = ("bart_finetune.pth", "head_finetune.pth")
+    missing = [n for n in needed if not (weights / n).exists()]
+    if not missing:
+        print(f"Skip-BART weights present in {weights}.")
+        return
+    print(
+        "\nSkip-BART weights missing. Download trained.zip from\n"
+        "  https://huggingface.co/RS2002/Skip-BART/blob/main/trained.zip\n"
+        f"and place these files under {weights}/:"
+    )
+    for name in needed:
+        print(f"  - {name}")
+    print(
+        "Then set STL_USE_REAL_SKIP_BART=true to enable the real adapter "
+        "(see docs/model-setup/README.md)."
+    )
+
+
 def main() -> int:
     _ensure_dirs()
     _warm_beatnet()
-    print("\nNext: place Skip-BART weight files under skip-bart/weights/ (step 10).")
-    print("Then run: python app/scripts/verify_models.py")
+    _print_skipbart_hint()
+    print("\nThen run: python app/scripts/verify_models.py")
     return 0
 
 

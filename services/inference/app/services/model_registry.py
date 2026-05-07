@@ -1,8 +1,9 @@
 """Resolves which adapter implementations to use at runtime.
 
 For v1, beat tracking is real (BeatNet+) when the package can be imported and
-the setting allows it; otherwise we fall back to the mock. Skip-BART remains
-mocked until PLAN step 10 lands.
+the setting allows it. Skip-BART is opt-in (`STL_USE_REAL_SKIP_BART=true`)
+because it is heavy and CPU-only inference is too slow for hard real-time;
+when opted in we still fall back to the mock if deps or weights are missing.
 """
 
 from __future__ import annotations
@@ -57,9 +58,33 @@ def _resolve_beat_tracker() -> tuple[BeatTrackerAdapter, str]:
 
 
 def _resolve_skip_bart() -> tuple[SkipBartAdapter, str]:
-    # Real Skip-BART lands in PLAN step 10. Weight presence flips the kind
-    # so verification can confirm discovery, but the runtime path stays mock.
-    if has_weights(settings.skip_bart_dir / "weights"):
+    weights_dir = settings.skip_bart_dir / "weights"
+
+    if settings.use_real_skip_bart:
+        try:
+            from app.adapters.skipbart_adapter import (
+                SkipBartGenerator,
+                has_required_weights,
+                is_available,
+            )
+
+            if not is_available():
+                log.warning(
+                    "Skip-BART deps not importable (need transformers/peft/openl3); "
+                    "falling back to mock"
+                )
+            elif not has_required_weights(weights_dir):
+                log.warning(
+                    "Skip-BART weights missing in %s; falling back to mock", weights_dir
+                )
+            else:
+                return SkipBartGenerator(), "skipbart"
+        except Exception as e:  # pragma: no cover - defensive
+            log.warning("Skip-BART adapter unavailable (%s); falling back to mock", e)
+
+    # Weight presence (without opt-in) flips the kind so verification can
+    # confirm discovery, but the runtime path stays mock.
+    if has_weights(weights_dir):
         return MockSkipBart(), "real-pending"
     return MockSkipBart(), "mock"
 

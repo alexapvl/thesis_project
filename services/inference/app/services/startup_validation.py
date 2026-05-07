@@ -50,6 +50,28 @@ def _check_dir(
     return issues
 
 
+def _check_skip_bart_required_files() -> list[ValidationIssue]:
+    """When real Skip-BART is opted in, both checkpoint files must be present."""
+    if not settings.use_real_skip_bart:
+        return []
+    from app.adapters.skipbart_adapter import required_weight_files
+
+    weights = settings.skip_bart_dir / "weights"
+    if not weights.exists():
+        return []  # already reported by _check_dir
+    missing = [name for name in required_weight_files() if not (weights / name).exists()]
+    if not missing:
+        return []
+    return [
+        ValidationIssue(
+            "warning",
+            "models.skipbart.files.missing",
+            f"skip-bart: STL_USE_REAL_SKIP_BART=true but missing {missing} in "
+            f"{weights} — falling back to mock",
+        )
+    ]
+
+
 def validate_setup() -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     if not settings.models_dir.exists():
@@ -66,6 +88,7 @@ def validate_setup() -> list[ValidationIssue]:
     # Skip-BART weights are placed manually and *do* gate the real adapter.
     issues += _check_dir(settings.beat_tracker_dir, "beat-tracker", expect_weights=False)
     issues += _check_dir(settings.skip_bart_dir, "skip-bart", expect_weights=True)
+    issues += _check_skip_bart_required_files()
     return issues
 
 

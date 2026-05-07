@@ -22,6 +22,13 @@ BeatNet>=1.1.1
 madmom @ git+https://github.com/CPJKU/madmom.git
 pyaudio>=0.2.14
 
+# Skip-BART (PLAN step 10). Architecture is vendored under
+# services/inference/vendor/skipbart/; these are its runtime deps.
+# openl3 is the music-embedding model used for Skip-BART's encoder input.
+transformers>=4.40
+peft>=0.10
+openl3>=0.4
+
 # Dev
 pytest>=8.0
 ruff>=0.6

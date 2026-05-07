@@ -31,5 +31,11 @@ class Settings(BaseSettings):
     # STL_USE_REAL_BEAT_TRACKER=false to force the mock (used by CI / tests).
     use_real_beat_tracker: bool = True
 
+    # When true, attempt to load the real Skip-BART (requires repo + weights +
+    # transformers/peft/openl3). Falls back to mock on any import / load
+    # failure. Default false: Skip-BART is heavy (240M params) and CPU-only
+    # inference is too slow for hard real-time, so it stays opt-in.
+    use_real_skip_bart: bool = False
+
 
 settings = Settings()

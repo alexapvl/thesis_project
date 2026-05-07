@@ -35,9 +35,6 @@ from app.pipeline.session_state import SessionState
 # Cap rolling buffer at ~4 s of mono float32 @ 48 kHz = 4 * 48000 * 4 ≈ 768 KB.
 DEFAULT_BUFFER_BYTES = 4 * 48_000 * 4
 
-# Emit a synthetic lighting frame every N chunks so the stream has visible motion.
-LIGHTING_EMIT_EVERY = 1
-
 # Window of recent beat times used for BPM estimation.
 TEMPO_WINDOW_SIZE = 8
 TEMPO_MIN_BEATS = 4
@@ -77,6 +74,7 @@ class SessionPipeline:
         self._beat.load()
         self._beat.reset()
         self._skip.load()
+        self._skip.warmup()
         self._skip.reset()
         self._beat_history_ms = []
         self._last_emitted_bpm = None
@@ -87,7 +85,10 @@ class SessionPipeline:
                 msg.sessionId,
                 self._state.next_seq(),
                 "idle",
-                detail=f"adapters ready: beat={type(self._beat).__name__}",
+                detail=(
+                    f"adapters ready: beat={type(self._beat).__name__}, "
+                    f"skip={type(self._skip).__name__}"
+                ),
             ),
         ]
         return out
@@ -180,17 +181,20 @@ class SessionPipeline:
                 )
                 self._last_emitted_bpm = bpm
 
-        # Synthetic lighting frame derived from chunk index. Replaced when the
-        # real Skip-BART adapter lands (Step 10).
-        if state.chunks_received % LIGHTING_EMIT_EVERY == 0:
-            hue = (chunk.sequence * 7) % 360
+        # Skip-BART (or mock) drain. Real adapter buffers internally and emits
+        # frames in bursts whenever its inference window fires; the mock emits
+        # one frame per ingested chunk.
+        self._skip.ingest(chunk)
+        for pred in self._skip.get_predictions():
             out.append(
                 lighting_update(
                     state.config.session_id,
                     state.next_seq(),
-                    hue=float(hue),
-                    value=0.6,
-                    intensity=0.6,
+                    hue=pred.hue,
+                    value=pred.value,
+                    intensity=pred.intensity,
+                    beat_pulse=pred.beat_pulse,
+                    confidence=pred.confidence,
                 )
             )
 

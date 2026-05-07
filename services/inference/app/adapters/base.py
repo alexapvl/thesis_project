@@ -13,10 +13,19 @@ class BeatTrackerAdapter(Protocol):
 
 
 class SkipBartAdapter(Protocol):
+    """Streaming-style adapter contract.
+
+    Skip-BART is non-causal in its original form (autoregressive over a full
+    sequence), so the real adapter implements streaming as a sliding-window
+    approximation. The contract here mirrors BeatTrackerAdapter so the pipeline
+    can drain predictions the same way it drains beats.
+    """
+
     def load(self) -> None: ...
     def warmup(self) -> None: ...
     def reset(self) -> None: ...
-    def predict(self, context: object) -> LightingPrediction | None: ...
+    def ingest(self, chunk: AudioChunk) -> None: ...
+    def get_predictions(self) -> list[LightingPrediction]: ...
 
 
 class PreprocessorAdapter(Protocol):

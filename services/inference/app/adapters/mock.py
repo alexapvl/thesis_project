@@ -30,10 +30,38 @@ class MockBeatTracker:
 
 
 class MockSkipBart:
+    """Deterministic synthetic lighting frames (one per ingested chunk).
+
+    Hue cycles with chunk sequence so the frontend has visible motion when the
+    real Skip-BART is not loaded. Mirrors the streaming Protocol so the
+    pipeline does not branch on adapter kind.
+    """
+
+    def __init__(self) -> None:
+        self._session_id: str = ""
+        self._pending: list[LightingPrediction] = []
+
     def load(self) -> None: ...
     def warmup(self) -> None: ...
-    def reset(self) -> None: ...
 
-    def predict(self, context: object) -> LightingPrediction | None:
-        del context
-        return None
+    def reset(self) -> None:
+        self._pending.clear()
+
+    def ingest(self, chunk: AudioChunk) -> None:
+        self._session_id = chunk.session_id
+        hue = float((chunk.sequence * 7) % 360)
+        self._pending.append(
+            LightingPrediction(
+                session_id=chunk.session_id,
+                hue=hue,
+                value=0.6,
+                intensity=0.6,
+                beat_pulse=None,
+                confidence=None,
+                frame_time_ms=chunk.timestamp_ms,
+            )
+        )
+
+    def get_predictions(self) -> list[LightingPrediction]:
+        out, self._pending = self._pending, []
+        return out

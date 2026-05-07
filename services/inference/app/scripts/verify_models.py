@@ -83,24 +83,36 @@ def _dry_run() -> int:
         return 1
 
     pcm_b64 = base64.b64encode(b"\x00\x00\x00\x00" * 2048).decode("ascii")
-    chunk_envs = pipeline.on_audio_chunk(
-        AudioChunk(
-            type="audio.chunk",
-            version=settings.protocol_version,
-            sessionId="verify",
-            timestampMs=0.0,
-            sequence=1,
-            startOffsetMs=None,
-            playbackPositionMs=0.0,
-            channels=1,
-            sampleRate=48000,
-            pcm=pcm_b64,
+    total_envs = 0
+    lighting_envs = 0
+    # Feed enough chunks (~5 s) so the real Skip-BART adapter — which only
+    # runs once its rolling window crosses ~2 s of audio — has a chance to
+    # emit. The mock emits one frame per chunk and is unaffected.
+    for seq in range(1, 121):
+        envs = pipeline.on_audio_chunk(
+            AudioChunk(
+                type="audio.chunk",
+                version=settings.protocol_version,
+                sessionId="verify",
+                timestampMs=float(seq) * (2048.0 / 48.0),
+                sequence=seq,
+                startOffsetMs=None,
+                playbackPositionMs=float(seq) * (2048.0 / 48.0),
+                channels=1,
+                sampleRate=48000,
+                pcm=pcm_b64,
+            )
         )
-    )
-    if not any(isinstance(e, LightingUpdate) for e in chunk_envs):
-        print("FAIL: pipeline did not emit lighting.update for a chunk")
+        total_envs += len(envs)
+        lighting_envs += sum(1 for e in envs if isinstance(e, LightingUpdate))
+
+    if lighting_envs == 0:
+        print(
+            f"FAIL: pipeline emitted no lighting.update across 120 chunks "
+            f"({total_envs} other envelopes)"
+        )
         return 1
-    print(f"dry-run: OK ({len(chunk_envs)} downstream envelope(s) on first chunk)")
+    print(f"dry-run: OK ({lighting_envs} lighting.update across 120 chunks)")
     return 0
 
 

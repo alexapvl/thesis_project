@@ -19,10 +19,11 @@ pip install --no-build-isolation -r services/inference/requirements.txt
 # 4. create the model directory layout and warm BeatNet
 python services/inference/app/scripts/prepare_models.py
 
-# 5. place Skip-BART weights manually (PLAN step 10)
-#    models/skip-bart/weights/<checkpoint files>
+# 5. (optional) place Skip-BART weights — see "Skip-BART" section below
+#    models/skip-bart/weights/bart_finetune.pth
+#    models/skip-bart/weights/head_finetune.pth
 
-# 6. verify (layout + torch import + adapter resolve + one-chunk dry-run)
+# 6. verify (layout + torch import + adapter resolve + dry-run)
 python services/inference/app/scripts/verify_models.py
 
 # 7. run the service
@@ -42,9 +43,46 @@ Behavior summary:
 
 Set `STL_USE_REAL_BEAT_TRACKER=false` to force the mock beat tracker (used by CI, or when BeatNet is intentionally not installed).
 
-## Skip-BART (placeholder)
+## Skip-BART
 
-Currently runs on a mock adapter. The real implementation lands with PLAN step 10. Place weight files under `models/skip-bart/weights/` once available; the registry will mark the adapter as `real-pending` until the real loader is wired.
+Generative lighting uses [Skip-BART](https://github.com/RS2002/Skip-BART) (Zhao et al., ICLR 2026). The architecture (`model.py`, `util.py`) is vendored under `services/inference/vendor/skipbart/` (see its `NOTICE.md` for the upstream commit). The 240M-parameter weights are not redistributable here and must be downloaded separately.
+
+### Weights
+
+Download `trained.zip` from <https://huggingface.co/RS2002/Skip-BART/blob/main/trained.zip>, extract, and place the two checkpoint files under `models/skip-bart/weights/`:
+
+```
+models/skip-bart/weights/
+├── bart_finetune.pth    # BART backbone + LoRA weights (~960 MB FP32)
+└── head_finetune.pth    # MLP classifier heads
+```
+
+### Enabling the real adapter
+
+```bash
+export STL_USE_REAL_SKIP_BART=true   # opt-in (default: false → mock)
+python services/inference/app/scripts/verify_models.py
+```
+
+If deps are missing, weight files are missing, or `is_available()` fails, the registry falls back to `MockSkipBart` and logs a warning instead of aborting. Set `STL_REQUIRE_REAL_MODELS=true` to make the warning a hard error.
+
+### Streaming approximation (caveats)
+
+Skip-BART is autoregressive over a fixed sequence (max 1024 frames) and was trained for offline generation, not streaming. The adapter approximates streaming with a sliding window:
+
+- 10-second rolling raw-audio buffer at 48 kHz
+- OpenL3 embeddings extracted at 10 fps (512-dim, music content type)
+- Re-runs full-sequence autoregressive RSTC sampling roughly once per second
+- Emits only frames whose timestamp is past the last-emitted cursor, so older frames are not re-published with different sampled values
+
+Implications:
+- Output is 10 Hz, not per-chunk, so `lighting.update` arrives in bursts.
+- CPU inference is too slow for hard real-time. Use CUDA when possible (the adapter auto-selects `cuda` if `torch.cuda.is_available()`).
+- Sampling is stochastic (RSTC: nucleus + temperature with hue/value distance restriction), so consecutive runs over overlapping audio produce different sequences. The adapter trades coherence for streaming feasibility.
+
+### Seek behaviour
+
+`session.seek` with `resetInference: true` calls `SkipBartGenerator.reset()`, which drops the audio buffer, resets the emit cursor, and forces the next window to start fresh — no decoder state leaks across the seek.
 
 ## Mock vs real models
 
@@ -61,9 +99,10 @@ All paths come from `app/config/settings.py` and are overridable via environment
 | `STL_SKIP_BART_DIR` | `<repo>/models/skip-bart` |
 | `STL_REQUIRE_REAL_MODELS` | `false` |
 | `STL_USE_REAL_BEAT_TRACKER` | `true` |
+| `STL_USE_REAL_SKIP_BART` | `false` |
 
 Run `python services/inference/app/scripts/print_config.py` to dump the resolved values.
 
 ## CUDA notes (optional)
 
-CPU path must work first. CUDA-specific torch builds are out of scope for the v1 baseline; document them here once needed. BeatNet accepts `device='cuda'` if needed; flip the constructor in `app/adapters/beatnet_adapter.py`.
+CPU path must work first. CUDA-specific torch builds are out of scope for the v1 baseline; document them here once needed. Both `BeatNet` and the Skip-BART adapter auto-select `device='cuda'` when `torch.cuda.is_available()` returns true; flip the BeatNet constructor in `app/adapters/beatnet_adapter.py` if you need to force the device.

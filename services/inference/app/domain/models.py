@@ -44,3 +44,6 @@ class LightingPrediction:
     intensity: float | None
     beat_pulse: float | None
     confidence: float | None
+    # Absolute frame timestamp in milliseconds (transport-time). Optional so
+    # the dataclass remains compatible with synthetic / unit-test predictions.
+    frame_time_ms: float | None = None
