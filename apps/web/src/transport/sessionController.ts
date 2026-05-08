@@ -143,6 +143,12 @@ class SessionController {
     const store = useStore.getState();
     if (e.kind === 'status') {
       store.transportSet(e.status, e.error ?? null);
+      // Log every status transition with whatever the client gave us. Close
+      // codes appear in `e.error` for disconnects (e.g. "[1006 abnormal]").
+      const tag = e.error ? `${e.status} (${e.error})` : e.status;
+      const level: 'info' | 'warn' | 'error' =
+        e.status === 'error' ? 'error' : e.status === 'disconnected' ? 'warn' : 'info';
+      store.debugLog(level, `transport: ${tag}`);
       if (e.status === 'connected') {
         // Re-issue session.init if a session was requested while disconnected.
         if (this.session) {

@@ -109,11 +109,17 @@ export class TransportClient {
 
     ws.onclose = (ev) => {
       this.ws = null;
+      // Surface the close code so we can tell normal closes from abnormal
+      // ones (1006 = peer dropped without a close frame, 1011 = server
+      // error, 1001 = going away, etc). Without the code in the message,
+      // EPIPE / proxy hiccups are indistinguishable from a clean close.
+      const tag = `[${ev.code}${ev.wasClean ? ' clean' : ' abnormal'}]`;
+      const reason = ev.reason ? `${tag} ${ev.reason}` : tag;
       if (this.wantOpen) {
-        this.setStatus('disconnected', ev.reason || null);
+        this.setStatus('disconnected', reason);
         this.scheduleReconnect();
       } else {
-        this.setStatus('disconnected');
+        this.setStatus('disconnected', reason);
       }
     };
   }
