@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "dev:server": "uvicorn app.api.ws:app --reload --app-dir services/inference --host 0.0.0.0 --port 8000",
+    "dev:server": "cd services/inference && python run_dev.py",
     "build": "pnpm -r --filter './packages/*' build && pnpm --filter web build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
