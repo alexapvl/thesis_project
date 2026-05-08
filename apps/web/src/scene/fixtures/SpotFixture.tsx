@@ -14,6 +14,14 @@ type Props = {
 
 const SPOT_INTENSITY_GAIN = 60;
 const LENS_EMISSIVE_GAIN = 1.5;
+// Visible "haze cone" parameters. The cone is a stand-in for the
+// volumetric look you'd get from a real fog machine + spotlight; we are
+// not raymarching anything. Opacity at full brightness is tuned to read
+// clearly without dominating the scene when many fixtures overlap.
+const CONE_OPACITY_GAIN = 0.2;
+// Cap the cone length at the spotLight's effective throw so we don't
+// draw a 200-unit haze when the user parks a target far off-screen.
+const CONE_MAX_LENGTH = 30;
 
 // Material colors for the moving-head body. Selected variants are warmer
 // so the user can pick out which fixture is active without relying on
@@ -28,10 +36,14 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   const headRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
   const lensMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const coneRef = useRef<THREE.Mesh>(null);
+  const coneMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const targetObj = useMemo(() => new THREE.Object3D(), []);
   const colorScratch = useMemo(() => new THREE.Color(), []);
-  // Reused per-frame to avoid allocating Vector3s for the aim target.
+  // Reused per-frame to avoid allocating Vector3s for the aim target
+  // and head world position.
   const aimScratch = useMemo(() => new THREE.Vector3(), []);
+  const headWorldScratch = useMemo(() => new THREE.Vector3(), []);
   const smoothed = useSmoothedLighting();
   const preview = useTransformPreview();
 
@@ -39,6 +51,18 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   const angle = (instance.overrides.angleRad as number) ?? Math.PI / 6;
   const distance = (instance.overrides.distance as number) ?? 30;
   const penumbra = (instance.overrides.penumbra as number) ?? 0.2;
+
+  // Unit-length cone aligned along -Z (so it grows out of the head's
+  // lens face), built with radius = tan(angle) so uniform scaling by
+  // the head→target distance preserves the half-angle. Open base
+  // (`openEnded=true`) keeps the back from showing as a flat disc when
+  // viewed near-axis.
+  const coneGeom = useMemo(() => {
+    const g = new THREE.ConeGeometry(Math.tan(angle), 1, 32, 1, true);
+    g.rotateX(Math.PI / 2); // align cone axis along Z (default is Y)
+    g.translate(0, 0, -0.5); // tip at z=0, base at z=-1
+    return g;
+  }, [angle]);
 
   useFrame(() => {
     // Pose: respect the in-flight transform preview if this fixture is
@@ -80,6 +104,30 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       lensMatRef.current.color.copy(render.color);
       lensMatRef.current.emissive.copy(render.color);
       lensMatRef.current.emissiveIntensity = render.intensity * LENS_EMISSIVE_GAIN;
+    }
+
+    // Visible cone: scale to head→target distance (capped) so the cone
+    // tip is at the lens and the base intersects the target. Hidden
+    // entirely when the fixture is dark — invisible cones cluttering up
+    // the depth buffer aren't useful and additive blending of "off"
+    // fixtures still adds zero color but costs fragments.
+    const cone = coneRef.current;
+    if (cone) {
+      if (render.intensity <= 0) {
+        cone.visible = false;
+      } else {
+        cone.visible = true;
+        // World-space distance from head pivot to aim point. The head's
+        // world matrix is up-to-date at this point because lookAt() was
+        // called above (we're past the parent group's matrix update).
+        head?.getWorldPosition(headWorldScratch);
+        const length = Math.min(headWorldScratch.distanceTo(aimScratch), CONE_MAX_LENGTH);
+        cone.scale.set(length, length, length);
+        if (coneMatRef.current) {
+          coneMatRef.current.color.copy(render.color);
+          coneMatRef.current.opacity = Math.min(1, render.intensity * CONE_OPACITY_GAIN);
+        }
+      }
     }
   });
 
@@ -137,6 +185,26 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.17, 0.17, 0.04, 20]} />
           <meshStandardMaterial ref={lensMatRef} color={HEAD_COLOR} />
+        </mesh>
+        {/* Visible "haze" cone. Tip sits at the lens face; uniform
+            per-frame scaling stretches it out to the target. Additive
+            blending so overlapping cones brighten naturally; depthWrite
+            off so the cone doesn't occlude solid geometry behind it. */}
+        <mesh
+          ref={coneRef}
+          geometry={coneGeom}
+          position={[0, 0, -0.22]}
+          renderOrder={1}
+        >
+          <meshBasicMaterial
+            ref={coneMatRef}
+            color={HEAD_COLOR}
+            transparent
+            opacity={0}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+          />
         </mesh>
       </group>
 
