@@ -6,6 +6,7 @@ import { FixtureRenderer } from '@/scene/fixtures/FixtureRenderer';
 import { SmoothedLightingProvider } from '@/scene/mappers/SmoothedLightingProvider';
 import { PlacementModeController } from './PlacementModeController';
 import { DragPlacementController } from './DragPlacementController';
+import { PlacementGhost } from './PlacementGhost';
 import { TransformHandles } from './TransformHandles';
 import { TargetHandle } from './TargetHandle';
 
@@ -46,6 +47,7 @@ export function SceneCanvas() {
 
       <PlacementModeController />
       <DragPlacementController />
+      <PlacementGhost />
       <TransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
       <TargetHandle setOrbitEnabled={setOrbitEnabled} />
 
