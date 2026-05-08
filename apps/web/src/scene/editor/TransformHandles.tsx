@@ -42,26 +42,33 @@ export function TransformHandles({ mode, setOrbitEnabled }: Props) {
   if (!selected || placement) return null;
 
   return (
-    <TransformControls
-      object={ref.current}
-      mode={mode}
-      onMouseDown={() => setOrbitEnabled(false)}
-      onMouseUp={() => {
-        setOrbitEnabled(true);
-        if (!selected) return;
-        if (mode === 'translate') {
-          let pos: Vec3 = [proxy.position.x, proxy.position.y, proxy.position.z];
-          if (gridSnap) pos = snapVec3(pos, gridSize);
-          dispatch({ type: 'fixture.update', id: selected.id, patch: { position: pos } });
-        } else {
-          const rot: Vec3 = [proxy.rotation.x, proxy.rotation.y, proxy.rotation.z];
-          const stepRad = (Math.PI / 180) * 5; // 5° rotational snap when grid snap is on
-          const snapped: Vec3 = gridSnap
-            ? [snap(rot[0], stepRad), snap(rot[1], stepRad), snap(rot[2], stepRad)]
-            : rot;
-          dispatch({ type: 'fixture.update', id: selected.id, patch: { rotation: snapped } });
-        }
-      }}
-    />
+    <>
+      {/* The proxy must live in the scene graph; otherwise drei's
+          TransformControls.attach() warns "must be a part of the scene
+          graph" every frame. We don't render anything visible from it —
+          the gizmo IS the visualization — so it's a bare <primitive>. */}
+      <primitive object={proxy} />
+      <TransformControls
+        object={ref.current}
+        mode={mode}
+        onMouseDown={() => setOrbitEnabled(false)}
+        onMouseUp={() => {
+          setOrbitEnabled(true);
+          if (!selected) return;
+          if (mode === 'translate') {
+            let pos: Vec3 = [proxy.position.x, proxy.position.y, proxy.position.z];
+            if (gridSnap) pos = snapVec3(pos, gridSize);
+            dispatch({ type: 'fixture.update', id: selected.id, patch: { position: pos } });
+          } else {
+            const rot: Vec3 = [proxy.rotation.x, proxy.rotation.y, proxy.rotation.z];
+            const stepRad = (Math.PI / 180) * 5; // 5° rotational snap when grid snap is on
+            const snapped: Vec3 = gridSnap
+              ? [snap(rot[0], stepRad), snap(rot[1], stepRad), snap(rot[2], stepRad)]
+              : rot;
+            dispatch({ type: 'fixture.update', id: selected.id, patch: { rotation: snapped } });
+          }
+        }}
+      />
+    </>
   );
 }
