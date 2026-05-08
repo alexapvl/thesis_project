@@ -27,7 +27,17 @@ class SessionController {
   private session: ActiveSession | null = null;
   private sequence = 0;
   private pingTimer: number | null = null;
-  private lastPingSentAtMs: number | null = null;
+  // Outstanding ping: we only track one at a time. If a pong is overdue
+  // when the next ping interval fires, we skip the new ping instead of
+  // overwriting the timestamp — overwriting caused spurious 5 s latency
+  // reports when a pong arrived after the next ping had been sent.
+  private pingInFlightAtMs: number | null = null;
+  // Wall-clock cutoff after which an outstanding ping is considered lost
+  // and the next interval is allowed to send a fresh one.
+  private pingDeadlineAtMs: number | null = null;
+  // How long to wait for a pong before giving up. One interval is enough:
+  // healthy roundtrips are <100 ms.
+  private static readonly PING_TIMEOUT_MS = 4000;
   private unsubEvents: (() => void) | null = null;
 
   /** Start the WebSocket connection. Idempotent. */
@@ -187,9 +197,13 @@ class SessionController {
         store.transportSet(this.client?.getStatus() ?? 'error', msg.message);
       },
       'server.pong': () => {
-        if (this.lastPingSentAtMs != null) {
-          store.transportSetLatency(Date.now() - this.lastPingSentAtMs);
-          this.lastPingSentAtMs = null;
+        // Only count pongs that match a still-in-flight ping. Late pongs
+        // (outstanding ping already timed out) are ignored — they would
+        // otherwise report inflated latency.
+        if (this.pingInFlightAtMs != null) {
+          store.transportSetLatency(Date.now() - this.pingInFlightAtMs);
+          this.pingInFlightAtMs = null;
+          this.pingDeadlineAtMs = null;
         }
       },
     });
@@ -204,13 +218,27 @@ class SessionController {
     if (this.pingTimer == null) return;
     window.clearInterval(this.pingTimer);
     this.pingTimer = null;
-    this.lastPingSentAtMs = null;
+    this.pingInFlightAtMs = null;
+    this.pingDeadlineAtMs = null;
   }
 
   private sendPing(): void {
     if (!this.client || this.client.getStatus() !== 'connected') return;
+    const now = Date.now();
+    if (this.pingInFlightAtMs != null) {
+      // Previous pong is still pending. If it has been outstanding longer
+      // than the timeout, treat it as lost and clear so the next ping can
+      // go out next interval.
+      if (this.pingDeadlineAtMs != null && now >= this.pingDeadlineAtMs) {
+        this.pingInFlightAtMs = null;
+        this.pingDeadlineAtMs = null;
+        useStore.getState().transportSetLatency(null);
+      }
+      return;
+    }
     const sessionId = this.session?.id ?? 'no-session';
-    this.lastPingSentAtMs = Date.now();
+    this.pingInFlightAtMs = now;
+    this.pingDeadlineAtMs = now + SessionController.PING_TIMEOUT_MS;
     this.client.send(buildClientPing({ sessionId, sequence: this.nextSeq() }));
   }
 }

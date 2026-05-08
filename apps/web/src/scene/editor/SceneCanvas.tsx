@@ -49,7 +49,7 @@ export function SceneCanvas() {
       <TransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
       <TargetHandle setOrbitEnabled={setOrbitEnabled} />
 
-      <OrbitControls enabled={orbitEnabled} makeDefault />
+      <OrbitControls enabled={orbitEnabled} makeDefault zoomSpeed={0.4} />
     </Canvas>
   );
 }

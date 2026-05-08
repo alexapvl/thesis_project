@@ -223,3 +223,9 @@ export const useStore = create<State & Actions>()(
 
 export type { State, Actions };
 export type StoreState = State & Actions;
+
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  // Dev convenience: poke the store from the DevTools console as
+  // `useStore.getState()`. Stripped from production bundles by Vite.
+  (window as unknown as { useStore: typeof useStore }).useStore = useStore;
+}
