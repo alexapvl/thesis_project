@@ -60,6 +60,25 @@ def tempo_update(
     )
 
 
+def _clamp01(v: float) -> float:
+    if v < 0:
+        return 0.0
+    if v > 1:
+        return 1.0
+    return v
+
+
+def _clamp01_opt(v: float | None) -> float | None:
+    return None if v is None else _clamp01(v)
+
+
+def _wrap_hue(h: float) -> float:
+    # Adapters occasionally emit slightly out-of-range hues (e.g. 360.0
+    # exactly, or a negative value from a circular subtraction). Wrap into
+    # [0, 360) so the schema validator never has to reject them.
+    return h % 360.0
+
+
 def lighting_update(
     session_id: str,
     sequence: int,
@@ -75,11 +94,11 @@ def lighting_update(
         sessionId=session_id,
         timestampMs=now_ms(),
         sequence=sequence,
-        hue=hue,
-        value=value,
-        beatPulse=beat_pulse,
-        intensity=intensity,
-        confidence=confidence,
+        hue=_wrap_hue(hue),
+        value=_clamp01(value),
+        beatPulse=_clamp01_opt(beat_pulse),
+        intensity=_clamp01_opt(intensity),
+        confidence=_clamp01_opt(confidence),
     )
 
 

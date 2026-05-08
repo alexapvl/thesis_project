@@ -116,6 +116,13 @@ def test_invalid_message_emits_server_error_and_keeps_socket_open(
 
 
 def test_metrics_endpoint_reflects_pipeline_activity(client: TestClient) -> None:
+    # Reset the process-wide metrics registry so the assertion below
+    # measures *this* test's pipeline activity, not residue from earlier
+    # tests in the same pytest run.
+    from app.utils.profiling import metrics
+
+    metrics.reset()
+
     sid = "metrics-session"
     pcm = base64.b64encode(b"\x00" * 16).decode("ascii")
     with client.websocket_connect("/ws") as ws:
@@ -152,6 +159,10 @@ def test_metrics_endpoint_reflects_pipeline_activity(client: TestClient) -> None
 
     payload = client.get("/metrics").json()
     assert "stages" in payload
-    # Pipeline ran; at least one of the wired stages must have samples.
-    stage_names = set(payload["stages"].keys())
-    assert {"beat.ingest", "skip.ingest"} & stage_names
+    # All four wired stages must be present and report exactly the four
+    # samples this test produced. Counting (not just presence) catches
+    # both registry drift and accidental skips of a stage in the pipeline.
+    expected = {"beat.ingest", "beat.drain", "skip.ingest", "skip.drain"}
+    assert expected <= set(payload["stages"].keys())
+    for stage in expected:
+        assert payload["stages"][stage]["count"] == 4, payload["stages"][stage]

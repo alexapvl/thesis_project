@@ -16,6 +16,14 @@ class SessionManager:
         self._pipelines: dict[str, SessionPipeline] = {}
 
     def create(self, session_id: str) -> SessionPipeline:
+        # If a session with this id is already registered (rare: client
+        # re-sent session.init on the same socket without changing the id)
+        # tear down the existing pipeline first. Without this the prior
+        # adapters leak — on_stop is never called, BeatNet/Skip-BART
+        # references stay live until process exit.
+        existing = self._pipelines.pop(session_id, None)
+        if existing is not None:
+            existing.on_stop()
         adapters = resolve_adapters()
         pipeline = SessionPipeline(adapters.beat_tracker, adapters.skip_bart)
         self._pipelines[session_id] = pipeline

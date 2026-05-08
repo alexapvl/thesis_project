@@ -82,11 +82,15 @@ class TempoUpdate(Envelope):
 
 class LightingUpdate(Envelope):
     type: Literal["lighting.update"] = "lighting.update"
-    hue: float
-    value: float
-    beatPulse: float | None = None
-    intensity: float | None = None
-    confidence: float | None = None
+    # Bounds mirror the zod schema in packages/protocol/src/messages.ts. If
+    # an adapter produces an out-of-range value the pydantic validator
+    # raises here rather than letting it slip onto the wire — without this
+    # the browser's zod check would reject every subsequent frame.
+    hue: float = Field(ge=0, le=360)
+    value: float = Field(ge=0, le=1)
+    beatPulse: float | None = Field(default=None, ge=0, le=1)
+    intensity: float | None = Field(default=None, ge=0, le=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
 
 
 class InferenceStatus(Envelope):
