@@ -88,9 +88,18 @@ export function TargetHandle({ setOrbitEnabled }: Props) {
         object={ref.current}
         mode="translate"
         size={0.6}
-        onMouseDown={() => setOrbitEnabled(false)}
+        onMouseDown={() => {
+          setOrbitEnabled(false);
+          preview.current.fixtureId = selected.id;
+        }}
+        onObjectChange={() => {
+          if (preview.current.fixtureId !== selected.id) return;
+          preview.current.target = proxy.position.clone();
+        }}
         onMouseUp={() => {
           setOrbitEnabled(true);
+          preview.current.fixtureId = null;
+          preview.current.target = null;
           if (!isInRange(proxy.position)) {
             proxy.position.set(...selected.target);
             force((n) => n + 1);

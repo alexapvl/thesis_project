@@ -19,6 +19,10 @@ export type TransformPreview = {
   fixtureId: string | null;
   position: THREE.Vector3 | null;
   rotation: THREE.Euler | null;
+  // Live target during a TargetHandle drag. SpotFixture reads this so
+  // the head's aim and the spotLight's target follow the user's
+  // cursor without waiting for mouseUp.
+  target: THREE.Vector3 | null;
 };
 
 export type TransformPreviewRef = { current: TransformPreview };
@@ -26,7 +30,12 @@ export type TransformPreviewRef = { current: TransformPreview };
 const TransformPreviewContext = createContext<TransformPreviewRef | null>(null);
 
 export function TransformPreviewProvider({ children }: { children: ReactNode }) {
-  const ref = useRef<TransformPreview>({ fixtureId: null, position: null, rotation: null });
+  const ref = useRef<TransformPreview>({
+    fixtureId: null,
+    position: null,
+    rotation: null,
+    target: null,
+  });
   const value = useMemo(() => ref, []);
   return (
     <TransformPreviewContext.Provider value={value}>{children}</TransformPreviewContext.Provider>

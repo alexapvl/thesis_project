@@ -75,9 +75,25 @@ export function PlacementGhost() {
     <group position={pos}>
       {def.kind === 'spot' ? (
         <>
-          <mesh>
-            <boxGeometry args={[0.4, 0.25, 0.4]} />
-            <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} emissive="#fbbf24" emissiveIntensity={0.3} />
+          {/* Mirror the real spotlight silhouette: base + yoke arms + head
+              aiming straight down (the default target sits at floor below
+              the fixture). Helps the user see what shape will land. */}
+          <mesh position={[0, -0.2, 0]}>
+            <cylinderGeometry args={[0.22, 0.28, 0.12, 20]} />
+            <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} />
+          </mesh>
+          <mesh position={[-0.2, 0, 0]}>
+            <boxGeometry args={[0.05, 0.36, 0.08]} />
+            <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} />
+          </mesh>
+          <mesh position={[0.2, 0, 0]}>
+            <boxGeometry args={[0.05, 0.36, 0.08]} />
+            <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} />
+          </mesh>
+          {/* Head, oriented to point straight down (matches default target). */}
+          <mesh position={[0, 0.05, 0]} rotation={[0, 0, 0]}>
+            <cylinderGeometry args={[0.16, 0.16, 0.42, 20]} />
+            <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} />
           </mesh>
           {/* Drop-line from fixture body to its default target on the floor. */}
           {target && (
