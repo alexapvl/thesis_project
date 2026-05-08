@@ -9,6 +9,7 @@ import { DragPlacementController } from './DragPlacementController';
 import { PlacementGhost } from './PlacementGhost';
 import { TransformHandles } from './TransformHandles';
 import { TargetHandle } from './TargetHandle';
+import { TransformPreviewProvider } from './TransformPreviewProvider';
 
 export function SceneCanvas() {
   const dispatch = useStore((s) => s.sceneDispatch);
@@ -41,15 +42,17 @@ export function SceneCanvas() {
         <meshStandardMaterial color="#0b1220" />
       </mesh>
 
-      <SmoothedLightingProvider>
-        <FixtureRenderer />
-      </SmoothedLightingProvider>
+      <TransformPreviewProvider>
+        <SmoothedLightingProvider>
+          <FixtureRenderer />
+        </SmoothedLightingProvider>
 
-      <PlacementModeController />
-      <DragPlacementController />
-      <PlacementGhost />
-      <TransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
-      <TargetHandle setOrbitEnabled={setOrbitEnabled} />
+        <PlacementModeController />
+        <DragPlacementController />
+        <PlacementGhost />
+        <TransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
+        <TargetHandle setOrbitEnabled={setOrbitEnabled} />
+      </TransformPreviewProvider>
 
       <OrbitControls enabled={orbitEnabled} makeDefault zoomSpeed={0.4} />
     </Canvas>
