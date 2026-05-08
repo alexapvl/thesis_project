@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BUILTIN_FIXTURES, type FixtureInstance } from '@stl/fixtures';
 import { mapLightingFrame } from '@/scene/mappers/mapLightingFrame';
@@ -46,6 +46,21 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   const headWorldScratch = useMemo(() => new THREE.Vector3(), []);
   const smoothed = useSmoothedLighting();
   const preview = useTransformPreview();
+  const scene = useThree((s) => s.scene);
+
+  // The spotLight's target Object3D MUST be a sibling of the scene root
+  // (or any unrotated ancestor), not a child of the fixture group.
+  // Three.js reads `target.matrixWorld` to compute the beam direction;
+  // when target is nested in a rotated parent, its local position gets
+  // transformed by that rotation, so the beam shoots somewhere other
+  // than the world point we intended. This is the "visible cone vs lit
+  // floor patch diverge under rotation" bug.
+  useEffect(() => {
+    scene.add(targetObj);
+    return () => {
+      scene.remove(targetObj);
+    };
+  }, [scene, targetObj]);
 
   const definition = BUILTIN_FIXTURES.find((d) => d.typeId === instance.definitionId);
   const angle = (instance.overrides.angleRad as number) ?? Math.PI / 6;
@@ -141,7 +156,9 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         onSelect(instance.id);
       }}
     >
-      <primitive object={targetObj} />
+      {/* Note: targetObj is parented to the scene root via useEffect
+          above — do NOT mount it here, or the rotation of this group
+          would offset where the beam actually shoots. */}
       <spotLight
         ref={lightRef}
         angle={angle}
