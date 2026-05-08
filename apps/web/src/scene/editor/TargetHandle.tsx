@@ -5,6 +5,7 @@ import { BUILTIN_FIXTURES } from '@stl/fixtures';
 import { useStore } from '@/store';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
+import { isInRange } from './raycastFloor';
 
 type Props = {
   setOrbitEnabled: (enabled: boolean) => void;
@@ -23,6 +24,7 @@ export function TargetHandle({ setOrbitEnabled }: Props) {
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
   const placement = useStore((s) => s.editor.pendingFixtureTypeId);
+  const debugLog = useStore((s) => s.debugLog);
 
   const proxy = useMemo(() => new THREE.Object3D(), []);
   const ref = useRef<THREE.Object3D>(proxy);
@@ -40,6 +42,14 @@ export function TargetHandle({ setOrbitEnabled }: Props) {
 
   return (
     <>
+      {/* Mount the proxy so drei's TransformControls.attach() finds it
+          parented to the scene. Same fix as TransformHandles. */}
+      <primitive object={proxy}>
+        <mesh>
+          <sphereGeometry args={[0.18, 16, 16]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+      </primitive>
       <TransformControls
         object={ref.current}
         mode="translate"
@@ -47,16 +57,20 @@ export function TargetHandle({ setOrbitEnabled }: Props) {
         onMouseDown={() => setOrbitEnabled(false)}
         onMouseUp={() => {
           setOrbitEnabled(true);
+          if (!isInRange(proxy.position)) {
+            // Drag projected to a near-Infinity world point (gizmo arrow
+            // nearly parallel to the camera ray). Revert the proxy and
+            // skip the dispatch instead of writing garbage to the doc.
+            proxy.position.set(...selected.target);
+            force((n) => n + 1);
+            debugLog('warn', 'target drag rejected: out of range');
+            return;
+          }
           let t: Vec3 = [proxy.position.x, proxy.position.y, proxy.position.z];
           if (gridSnap) t = snapVec3(t, gridSize);
           dispatch({ type: 'fixture.update', id: selected.id, patch: { target: t } });
         }}
-      >
-        <mesh>
-          <sphereGeometry args={[0.18, 16, 16]} />
-          <meshBasicMaterial color="#fbbf24" />
-        </mesh>
-      </TransformControls>
+      />
       <line>
         <bufferGeometry
           attach="geometry"

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useStore } from '@/store';
 import { snap, snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
+import { isInRange } from './raycastFloor';
 
 type Mode = 'translate' | 'rotate';
 
@@ -20,6 +21,7 @@ export function TransformHandles({ mode, setOrbitEnabled }: Props) {
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
   const placement = useStore((s) => s.editor.pendingFixtureTypeId);
+  const debugLog = useStore((s) => s.debugLog);
 
   const proxy = useMemo(() => new THREE.Object3D(), []);
   const ref = useRef<THREE.Object3D>(proxy);
@@ -56,6 +58,15 @@ export function TransformHandles({ mode, setOrbitEnabled }: Props) {
           setOrbitEnabled(true);
           if (!selected) return;
           if (mode === 'translate') {
+            if (!isInRange(proxy.position)) {
+              // Drag projected past the world cap (gizmo arrow nearly
+              // parallel to the camera ray). Revert the proxy and bail
+              // instead of writing garbage to the document.
+              proxy.position.set(...selected.position);
+              force((n) => n + 1);
+              debugLog('warn', 'move rejected: out of range');
+              return;
+            }
             let pos: Vec3 = [proxy.position.x, proxy.position.y, proxy.position.z];
             if (gridSnap) pos = snapVec3(pos, gridSize);
             dispatch({ type: 'fixture.update', id: selected.id, patch: { position: pos } });

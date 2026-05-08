@@ -9,7 +9,24 @@ import type { Vec3 } from '@/scene/document/reducer';
  * and the returned point sits at (Inf, Inf, Inf). The grid is 20x20, so
  * any legitimate floor hit is well inside this bound.
  */
-const MAX_HIT_RADIUS = 200;
+export const MAX_HIT_RADIUS = 200;
+
+/**
+ * Returns true if every component is finite and the XZ projection lies
+ * within the world cap. Used to reject TransformControls drag results
+ * when the mouse-to-world projection blows up — e.g. the user grabs a
+ * gizmo arrow nearly parallel to the camera ray.
+ */
+export function isInRange(v: { x: number; y: number; z: number }): boolean {
+  return (
+    Number.isFinite(v.x) &&
+    Number.isFinite(v.y) &&
+    Number.isFinite(v.z) &&
+    Math.abs(v.x) <= MAX_HIT_RADIUS &&
+    Math.abs(v.y) <= MAX_HIT_RADIUS &&
+    Math.abs(v.z) <= MAX_HIT_RADIUS
+  );
+}
 
 const _floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const _ray = new THREE.Raycaster();
