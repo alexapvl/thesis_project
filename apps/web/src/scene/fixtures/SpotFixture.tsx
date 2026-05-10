@@ -67,9 +67,10 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   const distance = (instance.overrides.distance as number) ?? 30;
   const penumbra = (instance.overrides.penumbra as number) ?? 0.2;
 
-  // Unit-length cone aligned along -Z (so it grows out of the head's
-  // lens face), built with radius = tan(angle) so uniform scaling by
-  // the head→target distance preserves the half-angle. Open base
+  // Unit-length cone built with radius = tan(angle) so uniform scaling
+  // by the head→target distance preserves the half-angle. Modelled
+  // along local -Z; the head group is flipped 180° in useFrame after
+  // lookAt so the cone ends up pointing at the target. Open base
   // (`openEnded=true`) keeps the back from showing as a flat disc when
   // viewed near-axis.
   const coneGeom = useMemo(() => {
@@ -103,10 +104,13 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
 
     const head = headRef.current;
     if (head) {
-      // lookAt expects world coords; aim point is already in world space.
-      // Object3D.lookAt rotates so the local -Z faces the target, which
-      // matches how we modelled the head (lens at -Z).
+      // Object3D.lookAt aligns local -Z with the target (aim point is
+      // already in world space). Our head model has its lens/cone
+      // built along -Z, but the visible front face needs to read as
+      // "pointing at the target" — flipping 180° around Y after
+      // lookAt achieves that without remodeling.
       head.lookAt(aimScratch);
+      head.rotateY(Math.PI);
     }
 
     // Lighting state → spotLight + lens material.
@@ -189,8 +193,9 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       </mesh>
 
       {/* Head — pivots between the yoke arms to point at the target.
-          Modelled with the lens at local -Z so Object3D.lookAt() aims
-          correctly without an extra basis swap. */}
+          Modelled with lens/cone along local -Z; the useFrame block
+          above runs lookAt() then rotates 180° around Y so the front
+          face ends up aimed at the target. */}
       <group ref={headRef} position={[0, 0.05, 0]}>
         {/* Body cylinder, axis along local Z (rotate cylinder Y→Z) */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -207,12 +212,7 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
             per-frame scaling stretches it out to the target. Additive
             blending so overlapping cones brighten naturally; depthWrite
             off so the cone doesn't occlude solid geometry behind it. */}
-        <mesh
-          ref={coneRef}
-          geometry={coneGeom}
-          position={[0, 0, -0.22]}
-          renderOrder={1}
-        >
+        <mesh ref={coneRef} geometry={coneGeom} position={[0, 0, -0.22]} renderOrder={1}>
           <meshBasicMaterial
             ref={coneMatRef}
             color={HEAD_COLOR}
