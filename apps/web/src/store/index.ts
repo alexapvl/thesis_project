@@ -87,7 +87,13 @@ const initialLighting: LightingRuntimeState = {
   beatPhase: null,
   confidence: null,
   lastBeatTimeMs: null,
+  lastDownbeatTimeMs: null,
   lastUpdateTimeMs: null,
+  beatsReceived: 0,
+  beatsReceivedReal: 0,
+  beatsReceivedSynthetic: 0,
+  beatEventTimestamps: [],
+  lightingFramesReceived: 0,
 };
 
 function pushHistory(history: HistoryState, prev: SceneDocument): HistoryState {

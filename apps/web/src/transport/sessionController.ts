@@ -178,21 +178,38 @@ class SessionController {
         store.inferenceSet('idle');
       },
       'beat.update': (msg) => {
-        store.lightingApply({
+        const now = Date.now();
+        const prev = useStore.getState().lighting;
+        // Trim to a 10-second rolling window so the panel can show a
+        // beats-per-second rate without unbounded memory.
+        const cutoff = now - 10_000;
+        const ts = prev.beatEventTimestamps.filter((t) => t >= cutoff);
+        ts.push(now);
+        const patch: Parameters<typeof store.lightingApply>[0] = {
           lastBeatTimeMs: msg.beatTimeMs,
           confidence: msg.confidence,
-          lastUpdateTimeMs: Date.now(),
-        });
+          lastUpdateTimeMs: now,
+          beatsReceived: prev.beatsReceived + 1,
+          beatsReceivedReal: prev.beatsReceivedReal + (msg.synthetic ? 0 : 1),
+          beatsReceivedSynthetic: prev.beatsReceivedSynthetic + (msg.synthetic ? 1 : 0),
+          beatEventTimestamps: ts,
+        };
+        if (msg.isDownbeat) {
+          patch.lastDownbeatTimeMs = msg.beatTimeMs;
+        }
+        store.lightingApply(patch);
       },
       'tempo.update': (msg) => {
         store.lightingApply({ bpm: msg.bpm, lastUpdateTimeMs: Date.now() });
       },
       'lighting.update': (msg) => {
+        const prev = useStore.getState().lighting;
         store.lightingApply({
           hue: msg.hue,
           value: msg.value,
           confidence: msg.confidence,
           lastUpdateTimeMs: Date.now(),
+          lightingFramesReceived: prev.lightingFramesReceived + 1,
         });
       },
       'inference.status': (msg) => {

@@ -31,6 +31,26 @@ class Settings(BaseSettings):
     # STL_USE_REAL_BEAT_TRACKER=false to force the mock (used by CI / tests).
     use_real_beat_tracker: bool = True
 
+    # BeatNet pretrained checkpoint. The repo ships three:
+    #   1 = GTZAN (broad / default)
+    #   2 = Ballroom (dance, very rhythmic)
+    #   3 = Rock_corpus (rock genre)
+    # Pick the one closest to the music being played for tighter tracking.
+    beatnet_model: int = 1
+
+    # Soft auto-gain on the audio buffer fed to BeatNet. BeatNet's docs say
+    # "as loud input as possible" — quiet tracks give the network a weak
+    # signal and produce wobblier beat estimates. This flag is server-side
+    # only; the user's playback path is unaffected.
+    beatnet_normalize_input: bool = True
+
+    # Beat/downbeat activation threshold used by our vendored copy of
+    # BeatNet's particle filter (see vendor/beatnet_patched/). Upstream is
+    # 0.4 — tuned for benchmark precision; we lower it to 0.25 for live
+    # lighting where missing a beat is worse than firing an extra one.
+    # Bumping toward 0.4 trades recall for fewer false positives.
+    beatnet_activation_threshold: float = 0.25
+
     # When true, attempt to load the real Skip-BART (requires repo + weights +
     # transformers/peft/openl3). Falls back to mock on any import / load
     # failure. Default false: Skip-BART is heavy (240M params) and CPU-only

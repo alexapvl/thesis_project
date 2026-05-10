@@ -43,8 +43,16 @@ export function ModelDebugPanel() {
     lighting.lastUpdateTimeMs != null ? Date.now() - lighting.lastUpdateTimeMs : null;
   const lastBeatAge =
     lighting.lastBeatTimeMs != null ? Date.now() - lighting.lastBeatTimeMs : null;
+  const lastDownbeatAge =
+    lighting.lastDownbeatTimeMs != null ? Date.now() - lighting.lastDownbeatTimeMs : null;
   const chunkAge =
     audio.lastChunkAtMs != null ? Date.now() - audio.lastChunkAtMs : null;
+  // Beats-per-second over the rolling 10-second window. Zero is the
+  // clearest debug signal: "BeatNet is producing nothing" feels very
+  // different from "BeatNet is firing but the rig isn't moving."
+  const now = Date.now();
+  const recentBeats = lighting.beatEventTimestamps.filter((t) => t >= now - 10_000);
+  const beatsPerSec = recentBeats.length / 10;
 
   return (
     <div className="model-debug">
@@ -79,10 +87,23 @@ export function ModelDebugPanel() {
           value={lastBeatAge != null ? `${lastBeatAge} ms ago` : '—'}
         />
         <Row
+          label="last downbeat"
+          value={lastDownbeatAge != null ? `${lastDownbeatAge} ms ago` : '—'}
+        />
+        <Row
           label="last chunk"
           value={chunkAge != null ? `${chunkAge} ms ago` : '—'}
         />
         <Row label="chunks sent" value={`${audio.chunksEmitted}`} />
+        <Row
+          label="beats recvd"
+          value={`${lighting.beatsReceived} (${beatsPerSec.toFixed(1)}/s)`}
+        />
+        <Row
+          label="beats real/synth"
+          value={`${lighting.beatsReceivedReal} / ${lighting.beatsReceivedSynthetic}`}
+        />
+        <Row label="lighting frames" value={`${lighting.lightingFramesReceived}`} />
         <Row label="transport" value={transport.status} />
         <Row
           label="latency"

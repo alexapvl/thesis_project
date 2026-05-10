@@ -40,7 +40,18 @@ export type LightingRuntimeState = {
   beatPhase: number | null;
   confidence: number | null;
   lastBeatTimeMs: number | null;
+  // Most recent downbeat timestamp from BeatNet. Distinct from lastBeatTimeMs
+  // because every downbeat is also a beat — fixtures that want to accent the
+  // "1" of each bar (bigger sweep, intensity flash) read this separately.
+  lastDownbeatTimeMs: number | null;
   lastUpdateTimeMs: number | null;
+  // Counters and rolling rates for the debug panel — let the user see at
+  // a glance whether beats are actually arriving from the server.
+  beatsReceived: number;
+  beatsReceivedReal: number;
+  beatsReceivedSynthetic: number;
+  beatEventTimestamps: number[]; // wall-clock receive times, last ~10 s
+  lightingFramesReceived: number;
 };
 
 export type EditorState = {

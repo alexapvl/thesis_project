@@ -25,13 +25,25 @@ const CONE_OPACITY_GAIN = 0.2;
 // draw a 200-unit haze when the user parks a target far off-screen.
 const CONE_MAX_LENGTH = 30;
 
-// Beat-driven movement. Skip-BART only predicts (hue, value), so to make
-// the rig feel alive we displace each fixture's aim point on every beat
-// from BeatNet within a small XZ radius around its scene-document target.
-// One offset per fixture so each spotlight sweeps independently; smoothed
-// over MOVE_TAU_SECONDS so it glides instead of snapping.
-const MOVE_RADIUS = 2.0;
-const MOVE_TAU_SECONDS = 0.18;
+// Beat-driven movement. Skip-BART only predicts (hue, value), so we
+// displace each fixture's aim point on every beat from BeatNet within a
+// configured XZ radius around its scene-document target. One offset per
+// fixture so spotlights sweep independently; smoothed over MOVE_TAU_SECONDS
+// so the path reads as a curve rather than a teleport.
+const MOVE_RADIUS = 3.5;
+// Tighter tau so the head reaches close to the new target before the
+// next beat overrides it — at 120 BPM (500 ms / beat) the head travels
+// ~99 % of the way, at 160 BPM (375 ms) ~98 %. Keeps the geometry
+// reading as decisive sweeps even on busy passages.
+const MOVE_TAU_SECONDS = 0.10;
+// On every new beat target, reject draws that land too close to the
+// current offset. Pure uniform sampling otherwise produces ~30 % of
+// "movements" that are tiny wobbles indistinguishable from noise.
+const MOVE_MIN_DISTANCE = 1.5;
+// Downbeats (the "1" of a bar) get an extra-wide throw to make the bar
+// boundary visible in the lighting. Picked to land near the rig perimeter
+// without overshooting MOVE_RADIUS too dramatically.
+const DOWNBEAT_RADIUS_BOOST = 1.6;
 
 // Material colors for the moving-head body. Selected variants are warmer
 // so the user can pick out which fixture is active without relying on
@@ -126,11 +138,26 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       const beatMs = lighting.lastBeatTimeMs;
       const m = moveState.current;
       if (beatMs != null && beatMs !== m.lastBeatMs) {
-        // New beat: reroll the offset target. Uniform draw inside the
-        // square [-R,R]² is good enough; the smoothing makes the path
-        // read as a curve regardless.
-        m.targetX = (Math.random() * 2 - 1) * MOVE_RADIUS;
-        m.targetZ = (Math.random() * 2 - 1) * MOVE_RADIUS;
+        // New beat: reroll the offset target. Downbeats get a wider
+        // radius so the bar boundary reads as a bigger sweep than the
+        // intermediate beats. Reject draws that land within
+        // MOVE_MIN_DISTANCE of the current offset — without this we'd
+        // see a lot of "moves" that are visually indistinguishable from
+        // standing still, and the rig looks sluggish even on busy music.
+        const isDownbeat =
+          lighting.lastDownbeatTimeMs != null && lighting.lastDownbeatTimeMs === beatMs;
+        const radius = isDownbeat ? MOVE_RADIUS * DOWNBEAT_RADIUS_BOOST : MOVE_RADIUS;
+        let nx = 0;
+        let nz = 0;
+        for (let i = 0; i < 6; i++) {
+          nx = (Math.random() * 2 - 1) * radius;
+          nz = (Math.random() * 2 - 1) * radius;
+          const dx = nx - m.currentX;
+          const dz = nz - m.currentZ;
+          if (dx * dx + dz * dz >= MOVE_MIN_DISTANCE * MOVE_MIN_DISTANCE) break;
+        }
+        m.targetX = nx;
+        m.targetZ = nz;
         m.lastBeatMs = beatMs;
       }
       const a = exponentialAlpha(delta, MOVE_TAU_SECONDS);

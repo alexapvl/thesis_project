@@ -72,6 +72,8 @@ class BeatUpdate(Envelope):
     type: Literal["beat.update"] = "beat.update"
     beatTimeMs: float
     confidence: float | None = None
+    isDownbeat: bool = False
+    synthetic: bool = False
 
 
 class TempoUpdate(Envelope):

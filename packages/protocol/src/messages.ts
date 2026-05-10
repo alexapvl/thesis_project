@@ -74,6 +74,17 @@ export const beatUpdateSchema = envelopeSchema.extend({
   type: z.literal('beat.update'),
   beatTimeMs: z.number(),
   confidence: z.number().min(0).max(1).nullable(),
+  // BeatNet labels each beat as either a downbeat (the "1" of a bar) or
+  // a regular beat. Optional so older servers without the field still
+  // validate; clients that want to accent downbeats should treat
+  // missing as `false`.
+  isDownbeat: z.boolean().optional(),
+  // True when the beat was synthesized by the backend's tempo-locked
+  // phase predictor rather than emitted by BeatNet itself. We synthesize
+  // when the predicted next beat passes without a real BeatNet beat —
+  // this keeps fixture movement at the right cadence on tracks where
+  // the model misses beats. Real beats resync the predictor's phase.
+  synthetic: z.boolean().optional(),
 });
 export type BeatUpdate = z.infer<typeof beatUpdateSchema>;
 

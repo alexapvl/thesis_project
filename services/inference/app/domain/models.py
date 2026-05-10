@@ -34,6 +34,7 @@ class BeatEvent:
     session_id: str
     beat_time_ms: float
     confidence: float | None
+    is_downbeat: bool = False
 
 
 @dataclass(frozen=True)
