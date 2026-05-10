@@ -25,7 +25,7 @@ _DISCONNECT_EXCEPTIONS = (WebSocketDisconnect, ClientDisconnected)
 from app.api.schemas import UpstreamMessage
 from app.config.settings import settings
 from app.pipeline.event_builder import server_error, server_pong
-from app.services.model_registry import resolve_adapters
+from app.services.model_registry import eager_load_adapters
 from app.services.session_manager import session_manager
 from app.services.startup_validation import issues_block_startup, validate_setup
 from app.utils.logging_setup import configure_logging, kv
@@ -49,7 +49,11 @@ async def lifespan(_: FastAPI):
             "model setup validation failed; "
             "set STL_REQUIRE_REAL_MODELS=false to run on mock adapters"
         )
-    adapters = resolve_adapters()
+    # Load weights and JIT-compile the heavy paths up front so the first
+    # user-visible play does not stall on a cold model. Subsequent
+    # session.init handlers reuse these warm adapters; their .load() and
+    # .warmup() calls become no-ops thanks to the _loaded short-circuit.
+    adapters = eager_load_adapters()
     log.info(
         "adapters.resolved %s",
         kv(beat=adapters.beat_tracker_kind, skip=adapters.skip_bart_kind),

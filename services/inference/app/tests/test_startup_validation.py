@@ -6,7 +6,7 @@ import pytest
 
 from app.config.settings import settings
 from app.services import startup_validation
-from app.services.model_registry import resolve_adapters
+from app.services.model_registry import _reset_cache_for_tests, resolve_adapters
 from app.services.startup_validation import (
     issues_block_startup,
     validate_setup,
@@ -69,11 +69,13 @@ def test_resolve_adapters_reports_kind(
     # Force the mock path so the test does not depend on BeatNet being
     # importable.
     monkeypatch.setattr(settings, "use_real_beat_tracker", False)
+    _reset_cache_for_tests()  # resolve_adapters is memoized in production
     adapters = resolve_adapters()
     assert adapters.beat_tracker_kind == "mock"
     assert adapters.skip_bart_kind == "mock"
 
     (settings.skip_bart_dir / "weights" / "fake.bin").write_bytes(b"x")
+    _reset_cache_for_tests()
     adapters = resolve_adapters()
     assert adapters.skip_bart_kind == "real-pending"
 

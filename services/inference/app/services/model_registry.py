@@ -89,12 +89,55 @@ def _resolve_skip_bart() -> tuple[SkipBartAdapter, str]:
     return MockSkipBart(), "mock"
 
 
+_cached: ResolvedAdapters | None = None
+
+
 def resolve_adapters() -> ResolvedAdapters:
+    """Process-wide adapter instances. Memoized.
+
+    First call constructs BeatNet + Skip-BART; every later call returns
+    the same objects. This is what makes "load once, reuse for every
+    session" possible — without memoization each new WebSocket session
+    would create fresh adapters and pay the ~15 s weight-load + TF
+    retrace cost again.
+
+    Adapter instances carry per-session state (rolling audio buffer,
+    KV cache, particle filter); each pipeline must call `.reset()` at
+    session start and on seek-with-reset.
+    """
+    global _cached
+    if _cached is not None:
+        return _cached
     beat, beat_kind = _resolve_beat_tracker()
     skip, skip_kind = _resolve_skip_bart()
-    return ResolvedAdapters(
+    _cached = ResolvedAdapters(
         beat_tracker=beat,
         skip_bart=skip,
         beat_tracker_kind=beat_kind,
         skip_bart_kind=skip_kind,
     )
+    return _cached
+
+
+def _reset_cache_for_tests() -> None:
+    """Clear memoized adapters. Tests that monkeypatch settings between
+    `resolve_adapters` calls must invoke this; production code never does.
+    """
+    global _cached
+    _cached = None
+
+
+def eager_load_adapters() -> ResolvedAdapters:
+    """Resolves the cached adapters and runs `.load()` + `.warmup()` once.
+
+    Called from FastAPI lifespan startup so the server pays the model
+    weight-load and TF retrace cost *before* any client connects. The
+    first play is then snappy instead of stalling on a cold cache.
+    """
+    adapters = resolve_adapters()
+    log.info("eager-loading adapters (this can take 10-15 s on first boot)")
+    adapters.beat_tracker.load()
+    adapters.skip_bart.load()
+    adapters.skip_bart.warmup()
+    log.info("adapters ready")
+    return adapters
