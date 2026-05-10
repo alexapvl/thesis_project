@@ -18,10 +18,19 @@ re-enabled.
 
 from __future__ import annotations
 
+import os
+
 import uvicorn
 
 
 def main() -> None:
+    # Default env vars for dev. Setting them here means `pnpm dev:server`
+    # picks up real models without the developer having to remember to
+    # export them every time. Existing values in the shell still win
+    # (setdefault), so CI / one-off runs can still override.
+    os.environ.setdefault("STL_USE_REAL_SKIP_BART", "true")
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
     uvicorn.run(
         "app.api.ws:app",
         host="0.0.0.0",
