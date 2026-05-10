@@ -56,6 +56,13 @@ class BeatNetTracker:
     def load(self) -> None:
         if self._loaded:
             return
+        # numpy >= 2.0 removed np.in1d; BeatNet's particle filter still
+        # calls it. Patch in a shim before importing BeatNet.
+        import numpy as _np  # noqa: PLC0415
+
+        if not hasattr(_np, "in1d"):
+            _np.in1d = _np.isin  # type: ignore[attr-defined]
+
         # Heavy import; do it lazily so test collection is not blocked.
         from BeatNet.BeatNet import BeatNet  # type: ignore[import-not-found]
 
