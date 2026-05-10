@@ -13,7 +13,21 @@ streaming with a sliding window:
      values.
 
 This re-runs whole-sequence inference on each window and is not cheap. On
-CPU it falls behind real-time; CUDA is recommended (see docs/model-setup).
+CPU/MPS one inference can take 1–7 s while the chunk pipeline ticks at
+~43 ms. To avoid blocking beat tracking and the rest of the chunk path,
+Skip-BART runs in a **background worker thread**:
+
+  * `ingest(chunk)` pushes the chunk onto an internal queue and returns
+    immediately.
+  * The worker drains the queue into the rolling buffer and runs
+    inference when the chunk-count threshold is met.
+  * `get_predictions()` non-blockingly drains the output queue of any
+    predictions the worker has produced since the last call.
+
+The pipeline interface (ingest/get_predictions/reset) is unchanged. The
+trade-off is that lighting updates lag the audio they were inferred from
+by up to one inference duration. Beat tracking — which lives in a
+different adapter on the sync path — stays real-time.
 
 Imports the architecture from the vendored snapshot at
 `services/inference/vendor/skipbart/` (see its `NOTICE.md` for upstream
@@ -24,6 +38,8 @@ attribution). Weights (`bart_finetune.pth`, `head_finetune.pth`) live in
 from __future__ import annotations
 
 import logging
+import queue
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +123,19 @@ class SkipBartGenerator:
         self._last_emitted_ms: float = -1.0
         self._session_id: str = ""
 
+        # Worker-thread plumbing. `_in_queue` carries `(generation, chunk)`
+        # so the worker can drop chunks queued before a reset. `_generation`
+        # is bumped on every reset() and the worker checks it both when
+        # pulling a chunk and again before pushing an inference result —
+        # any work from a previous generation is discarded mid-flight.
+        # All buffer state below the lock belongs to the worker thread.
+        self._in_queue: queue.Queue[tuple[int, AudioChunk]] = queue.Queue()
+        self._out_queue: queue.Queue[LightingPrediction] = queue.Queue()
+        self._worker_thread: threading.Thread | None = None
+        self._stop_event: threading.Event = threading.Event()
+        self._generation: int = 0
+        self._gen_lock: threading.Lock = threading.Lock()
+
     # ── lifecycle ────────────────────────────────────────────────────────────
 
     def load(self) -> None:
@@ -177,6 +206,17 @@ class SkipBartGenerator:
         self._loaded = True
         log.info("Skip-BART loaded (device=%s)", device)
 
+        # Spin up the inference worker. Daemon so it does not block process
+        # shutdown if a stuck inference call survives a SIGINT.
+        if self._worker_thread is None or not self._worker_thread.is_alive():
+            self._stop_event.clear()
+            self._worker_thread = threading.Thread(
+                target=self._worker_loop,
+                daemon=True,
+                name="skipbart-worker",
+            )
+            self._worker_thread.start()
+
     def warmup(self) -> None:
         if not self._loaded:
             return
@@ -190,21 +230,89 @@ class SkipBartGenerator:
             log.warning("Skip-BART warmup failed: %s", e)
 
     def reset(self) -> None:
+        # Bump generation so any chunk already in `_in_queue` and any
+        # prediction the worker is about to push gets dropped.
+        with self._gen_lock:
+            self._generation += 1
         self._buffer = np.zeros(0, dtype=np.float32)
         self._buffer_start_ms = None
         self._chunks_since_run = 0
         self._last_emitted_ms = -1.0
+        _drain(self._in_queue)
+        _drain(self._out_queue)
 
     # ── ingest / emit ────────────────────────────────────────────────────────
 
     def ingest(self, chunk: AudioChunk) -> None:
+        """Hand the chunk off to the worker thread. Does not block.
+
+        The worker drains the queue into the rolling buffer and runs
+        inference when the chunk-count threshold is met. ingest() itself
+        is ~microseconds — the heavy lifting happens elsewhere so the
+        chunk-processing path stays real-time.
+        """
         if not self._loaded:
             return
         self._session_id = chunk.session_id
+        with self._gen_lock:
+            gen = self._generation
+        self._in_queue.put((gen, chunk))
 
+    def get_predictions(self) -> list[LightingPrediction]:
+        """Drain whatever the worker has produced since the last call."""
+        out: list[LightingPrediction] = []
+        try:
+            while True:
+                out.append(self._out_queue.get_nowait())
+        except queue.Empty:
+            pass
+        return out
+
+    # ── worker thread ────────────────────────────────────────────────────────
+
+    def _worker_loop(self) -> None:
+        """Background inference loop. One per adapter instance.
+
+        Pulls chunks off `_in_queue`, appends each to the rolling buffer
+        (cheap), and runs the inference block when the chunk-count
+        threshold is met (expensive — 1–7 s). The generation check at both
+        ends lets a session reset discard everything in flight without
+        having to interrupt an in-progress inference.
+        """
+        while not self._stop_event.is_set():
+            try:
+                item = self._in_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            gen, chunk = item
+            with self._gen_lock:
+                current_gen = self._generation
+            if gen != current_gen:
+                # Reset happened after this chunk was enqueued. Discard.
+                continue
+            try:
+                predictions = self._process_chunk(chunk)
+            except Exception as e:  # pragma: no cover — defensive
+                log.warning("Skip-BART worker raised on chunk: %s", e)
+                continue
+            for pred in predictions:
+                # Re-check generation just before publishing: a reset that
+                # arrived during the inference would otherwise leak stale
+                # frames into the next session.
+                with self._gen_lock:
+                    if gen != self._generation:
+                        break
+                self._out_queue.put(pred)
+
+    def _process_chunk(self, chunk: AudioChunk) -> list[LightingPrediction]:
+        """Append `chunk` to the buffer and, if it's time, run inference.
+
+        Carries the same semantics the synchronous ingest+get_predictions
+        pair used to have — just run on the worker thread.
+        """
         pcm_in = np.frombuffer(chunk.pcm, dtype="<f4")
         if pcm_in.size == 0:
-            return
+            return []
 
         # Audio arrives at the canonical 48 kHz; OpenL3 also uses 48 kHz, no
         # resample needed for the common path.
@@ -224,9 +332,6 @@ class SkipBartGenerator:
 
         self._chunks_since_run += 1
 
-    def get_predictions(self) -> list[LightingPrediction]:
-        if not self._loaded or self._buffer_start_ms is None:
-            return []
         if self._buffer.size < int(MIN_WINDOW_SECONDS_TO_RUN * self._buffer_sample_rate):
             return []
         if self._chunks_since_run < MIN_CHUNKS_BETWEEN_RUNS:
@@ -346,6 +451,16 @@ class SkipBartGenerator:
                 light[0, i + 1, 1] = v_tok
 
         return result
+
+
+def _drain(q: queue.Queue) -> None:
+    """Empty `q` non-blockingly. Used on session reset to discard anything
+    still queued from the previous generation."""
+    try:
+        while True:
+            q.get_nowait()
+    except queue.Empty:
+        pass
 
 
 def _restrict_hue(h_logits, h_last: int, h_range: int) -> None:
