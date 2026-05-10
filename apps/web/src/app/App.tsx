@@ -9,6 +9,7 @@ import { PersistenceControls } from '@/features/persistence/PersistenceControls'
 import { useAutosave } from '@/features/persistence/useAutosave';
 import { useHydrate } from '@/features/persistence/useHydrate';
 import { DebugPanel } from '@/components/DebugPanel';
+import { ModelDebugPanel } from '@/components/ModelDebugPanel';
 import { SceneCanvas } from '@/scene/editor/SceneCanvas';
 import { useAudioBoot } from '@/audio/useAudioBoot';
 import { useTransportBoot } from '@/transport';
@@ -39,6 +40,7 @@ export function App() {
         </section>
         <aside className="panel right">
           <SceneEditorPanel />
+          <ModelDebugPanel />
           <DebugPanel />
         </aside>
       </main>

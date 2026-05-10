@@ -205,6 +205,19 @@ class SessionPipeline:
                 )
             )
 
+        # First real prediction of this session/seek-window: flip the
+        # status from idle → running so the UI knows the model is live.
+        if predictions and not state.inference_running_announced:
+            out.append(
+                inference_status(
+                    state.config.session_id,
+                    state.next_seq(),
+                    "running",
+                    detail=f"{type(self._skip).__name__} producing predictions",
+                )
+            )
+            state.inference_running_announced = True
+
         return out
 
     # ── introspection ────────────────────────────────────────────────────────

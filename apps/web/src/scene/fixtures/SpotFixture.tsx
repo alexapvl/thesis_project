@@ -4,7 +4,9 @@ import * as THREE from 'three';
 import { BUILTIN_FIXTURES, type FixtureInstance } from '@stl/fixtures';
 import { mapLightingFrame } from '@/scene/mappers/mapLightingFrame';
 import { useSmoothedLighting } from '@/scene/mappers/SmoothedLightingProvider';
+import { exponentialAlpha, smoothScalar } from '@/scene/mappers/smoothing';
 import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
+import { useStore } from '@/store';
 
 type Props = {
   instance: FixtureInstance;
@@ -22,6 +24,14 @@ const CONE_OPACITY_GAIN = 0.2;
 // Cap the cone length at the spotLight's effective throw so we don't
 // draw a 200-unit haze when the user parks a target far off-screen.
 const CONE_MAX_LENGTH = 30;
+
+// Beat-driven movement. Skip-BART only predicts (hue, value), so to make
+// the rig feel alive we displace each fixture's aim point on every beat
+// from BeatNet within a small XZ radius around its scene-document target.
+// One offset per fixture so each spotlight sweeps independently; smoothed
+// over MOVE_TAU_SECONDS so it glides instead of snapping.
+const MOVE_RADIUS = 2.0;
+const MOVE_TAU_SECONDS = 0.18;
 
 // Material colors for the moving-head body. Selected variants are warmer
 // so the user can pick out which fixture is active without relying on
@@ -44,6 +54,17 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   // and head world position.
   const aimScratch = useMemo(() => new THREE.Vector3(), []);
   const headWorldScratch = useMemo(() => new THREE.Vector3(), []);
+  // Per-fixture beat-driven offset state. `current` glides toward `target`
+  // each frame; `target` is rerolled on every new beat. `lastBeatMs`
+  // remembers the most recent beat we've reacted to so we don't reroll
+  // every frame.
+  const moveState = useRef({
+    currentX: 0,
+    currentZ: 0,
+    targetX: 0,
+    targetZ: 0,
+    lastBeatMs: -1 as number,
+  });
   const smoothed = useSmoothedLighting();
   const preview = useTransformPreview();
   const scene = useThree((s) => s.scene);
@@ -80,7 +101,7 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
     return g;
   }, [angle]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     // Pose: respect the in-flight transform preview if this fixture is
     // the one being dragged.
     const g = groupRef.current;
@@ -99,6 +120,24 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       aimScratch.copy(preview.current.target);
     } else {
       aimScratch.set(instance.target[0], instance.target[1], instance.target[2]);
+      // Beat-driven sweep, skipped while the user is dragging the
+      // target gizmo so we don't fight their input.
+      const lighting = useStore.getState().lighting;
+      const beatMs = lighting.lastBeatTimeMs;
+      const m = moveState.current;
+      if (beatMs != null && beatMs !== m.lastBeatMs) {
+        // New beat: reroll the offset target. Uniform draw inside the
+        // square [-R,R]² is good enough; the smoothing makes the path
+        // read as a curve regardless.
+        m.targetX = (Math.random() * 2 - 1) * MOVE_RADIUS;
+        m.targetZ = (Math.random() * 2 - 1) * MOVE_RADIUS;
+        m.lastBeatMs = beatMs;
+      }
+      const a = exponentialAlpha(delta, MOVE_TAU_SECONDS);
+      m.currentX = smoothScalar(m.currentX, m.targetX, a);
+      m.currentZ = smoothScalar(m.currentZ, m.targetZ, a);
+      aimScratch.x += m.currentX;
+      aimScratch.z += m.currentZ;
     }
     targetObj.position.copy(aimScratch);
 

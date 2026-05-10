@@ -15,6 +15,9 @@ class SessionState:
     last_playback_position_ms: float | None = None
     seek_count: int = 0
     last_beat_emit_seq: int = field(default=-1)
+    # Tracks whether we've already announced inference.status="running" for
+    # this session/seek-window. Flips back to False on seek-with-reset.
+    inference_running_announced: bool = False
 
     def next_seq(self) -> int:
         self.out_sequence += 1
@@ -25,3 +28,4 @@ class SessionState:
         self.last_playback_position_ms = new_position_ms
         self.chunks_received = 0
         self.last_beat_emit_seq = -1
+        self.inference_running_announced = False

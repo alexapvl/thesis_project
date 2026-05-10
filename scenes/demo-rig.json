@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "scene-demo-rig",
+  "name": "Demo Rig",
+  "selectedFixtureId": null,
+  "groups": [],
+  "fixtures": [
+    {
+      "id": "spot-back-left",
+      "definitionId": "builtin.spot",
+      "name": "Spot Back Left",
+      "enabled": true,
+      "position": [-4, 4, -4],
+      "rotation": [0, 0, 0],
+      "target": [-2, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "spot-back-center",
+      "definitionId": "builtin.spot",
+      "name": "Spot Back Center",
+      "enabled": true,
+      "position": [0, 4, -4],
+      "rotation": [0, 0, 0],
+      "target": [0, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "spot-back-right",
+      "definitionId": "builtin.spot",
+      "name": "Spot Back Right",
+      "enabled": true,
+      "position": [4, 4, -4],
+      "rotation": [0, 0, 0],
+      "target": [2, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "spot-front-left",
+      "definitionId": "builtin.spot",
+      "name": "Spot Front Left",
+      "enabled": true,
+      "position": [-4, 4, 4],
+      "rotation": [0, 0, 0],
+      "target": [2, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "spot-front-right",
+      "definitionId": "builtin.spot",
+      "name": "Spot Front Right",
+      "enabled": true,
+      "position": [4, 4, 4],
+      "rotation": [0, 0, 0],
+      "target": [-2, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "spot-overhead",
+      "definitionId": "builtin.spot",
+      "name": "Spot Overhead",
+      "enabled": true,
+      "position": [0, 6, 0],
+      "rotation": [0, 0, 0],
+      "target": [0, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "point-left-fill",
+      "definitionId": "builtin.point",
+      "name": "Point Fill Left",
+      "enabled": true,
+      "position": [-3, 2, 0],
+      "rotation": [0, 0, 0],
+      "target": [-3, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    },
+    {
+      "id": "point-right-fill",
+      "definitionId": "builtin.point",
+      "name": "Point Fill Right",
+      "enabled": true,
+      "position": [3, 2, 0],
+      "rotation": [0, 0, 0],
+      "target": [3, 0, 0],
+      "groupId": null,
+      "overrides": {}
+    }
+  ]
+}
