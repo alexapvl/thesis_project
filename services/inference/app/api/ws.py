@@ -8,6 +8,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+try:
+    # Uvicorn raises this when the underlying TCP connection drops mid-write.
+    # Treat it the same as a starlette WebSocketDisconnect.
+    from uvicorn.protocols.utils import ClientDisconnected
+except ImportError:  # pragma: no cover — older uvicorn
+    class ClientDisconnected(Exception):  # type: ignore[no-redef]
+        ...
+
+
+# Tuple of "client is gone" exceptions. Anywhere we'd otherwise try to send
+# on a dead socket, catch these instead — emitting an error envelope back
+# would just throw "Cannot call send once close has been sent."
+_DISCONNECT_EXCEPTIONS = (WebSocketDisconnect, ClientDisconnected)
+
 from app.api.schemas import UpstreamMessage
 from app.config.settings import settings
 from app.pipeline.event_builder import server_error, server_pong
@@ -179,6 +193,11 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     )
                     await send(server_pong(sid, seq))
 
+            except _DISCONNECT_EXCEPTIONS:
+                # Client went away while we were mid-handler. Don't try to
+                # emit an error envelope (the socket is already closed);
+                # just bubble out to the outer handler for clean teardown.
+                raise
             except Exception as e:  # noqa: BLE001
                 # Catch-all so an exception in one message handler does not
                 # tear down the WebSocket. Log with the full traceback for
@@ -187,9 +206,15 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     "ws.dispatch.failure %s",
                     kv(stage=mtype, session_id=session_id, exc=type(e).__name__),
                 )
-                await emit_error(mtype, "internal.unhandled", type(e).__name__)
+                try:
+                    await emit_error(mtype, "internal.unhandled", type(e).__name__)
+                except _DISCONNECT_EXCEPTIONS:
+                    # Connection went away between the original error and
+                    # our attempt to report it. Abandon and let the outer
+                    # handler clean up the session.
+                    raise
 
-    except WebSocketDisconnect:
+    except _DISCONNECT_EXCEPTIONS:
         log.info("ws.disconnect %s", kv(session_id=session_id))
     finally:
         if session_id is not None:
