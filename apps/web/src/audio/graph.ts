@@ -8,17 +8,24 @@ import type { WorkletChunkMessage } from './types';
  * downstream analyser + worklet feed the same chunk emitter regardless of
  * the source. This is what gives us "file and mic converge before transport".
  *
- *   currentSource ─→ inputBus ─┬─→ analyser ─→ destination
+ *   currentSource ─→ inputBus ─┬─→ analyser ─→ monitorGain ─→ destination
  *                              └─→ worklet ─→ (silent sink)
+ *
+ * `monitorGain` gates speaker output without affecting the analyser/worklet
+ * paths. File mode turns it on; mic mode turns it off so the mic doesn't
+ * loop back through the speakers and cause feedback.
  */
 export type AudioGraph = {
   ctx: AudioContext;
   inputBus: GainNode;
   analyser: AnalyserNode;
+  monitorGain: GainNode;
   worklet: AudioWorkletNode;
   destination: AudioDestinationNode;
   /** Replaces the connected source. Disconnects the previous one. */
   setSource: (node: AudioNode | null) => void;
+  /** Toggle whether the source is audible through the speakers. */
+  setMonitor: (enabled: boolean) => void;
   /** Subscribe to canonical mono 48 kHz chunks. Returns an unsubscribe. */
   onChunk: (cb: (msg: WorkletChunkMessage) => void) => () => void;
   /** Tear down all nodes. The AudioContext stays alive for re-use. */
@@ -47,6 +54,12 @@ async function build(): Promise<AudioGraph> {
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 2048;
 
+  // Default ON; mic source flips it off to avoid feedback loops on
+  // built-in laptop speakers. File source explicitly turns it on so
+  // switching mic → file restores monitoring.
+  const monitorGain = ctx.createGain();
+  monitorGain.gain.value = 1.0;
+
   const worklet = new AudioWorkletNode(ctx, 'chunk-processor', {
     numberOfInputs: 1,
     numberOfOutputs: 1,
@@ -61,7 +74,8 @@ async function build(): Promise<AudioGraph> {
   worklet.connect(sink).connect(ctx.destination);
 
   inputBus.connect(analyser);
-  analyser.connect(ctx.destination);
+  analyser.connect(monitorGain);
+  monitorGain.connect(ctx.destination);
   inputBus.connect(worklet);
 
   let currentSource: AudioNode | null = null;
@@ -77,6 +91,7 @@ async function build(): Promise<AudioGraph> {
     ctx,
     inputBus,
     analyser,
+    monitorGain,
     worklet,
     destination: ctx.destination,
     setSource(node) {
@@ -90,6 +105,9 @@ async function build(): Promise<AudioGraph> {
       currentSource = node;
       if (node) node.connect(inputBus);
     },
+    setMonitor(enabled) {
+      monitorGain.gain.value = enabled ? 1.0 : 0.0;
+    },
     onChunk(cb) {
       listeners.add(cb);
       return () => {
@@ -102,6 +120,7 @@ async function build(): Promise<AudioGraph> {
         worklet.port.onmessage = null;
         worklet.disconnect();
         analyser.disconnect();
+        monitorGain.disconnect();
         inputBus.disconnect();
         sink.disconnect();
       } catch {

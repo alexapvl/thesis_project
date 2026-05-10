@@ -32,6 +32,9 @@ export async function createMicrophoneSource(): Promise<MicrophoneSource> {
       });
       node = graph.ctx.createMediaStreamSource(stream);
       graph.setSource(node);
+      // Mute speakers in mic mode — laptop mic + speakers loop back through
+      // the air and create runaway feedback when input is loud enough.
+      graph.setMonitor(false);
       active = true;
     },
     async stop() {

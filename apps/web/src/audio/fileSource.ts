@@ -76,6 +76,8 @@ export async function createFilePlayer(file: File, events: FilePlayerEvents): Pr
       events.onEnded();
     };
     graph.setSource(node);
+    // Restore speaker output: mic mode would have muted it.
+    graph.setMonitor(true);
     source = node;
     startedAtCtxTime = graph.ctx.currentTime;
     node.start(0, resumeOffsetS);
