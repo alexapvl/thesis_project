@@ -42,6 +42,21 @@ TEMPO_MIN_BEATS = 4
 TEMPO_MIN_BPM = 40.0
 TEMPO_MAX_BPM = 220.0
 
+# Beat synthesis. Once BeatNet has produced enough beats to establish a
+# stable tempo, we maintain a "next predicted beat" timestamp and emit a
+# synthetic beat each time it passes — keeps fixture movement at the
+# right cadence even when BeatNet misses beats (which it does, often,
+# on real music — see docs).
+SYNTH_MIN_BEATS_TO_LOCK = TEMPO_MIN_BEATS  # need stable tempo before synthesizing
+# Minimum spacing between any two emitted beats (real or synthetic),
+# expressed as a fraction of the current beat interval. Anything that
+# would land closer than this to the previous emitted beat gets dropped.
+# This is what keeps a real BeatNet beat and the next predicted synth
+# beat from both firing inside one musical beat — at 136 BPM = 441 ms
+# interval × 0.6 = 264 ms minimum gap, so two beats can't squeeze inside
+# the same period.
+SYNTH_MIN_GAP_FRACTION = 0.6
+
 
 DownstreamEnvelope = SessionReady | BeatUpdate | TempoUpdate | LightingUpdate | InferenceStatus
 
@@ -60,6 +75,16 @@ class SessionPipeline:
         self._buffer = AudioRingBuffer(DEFAULT_BUFFER_BYTES)
         self._beat_history_ms: list[float] = []
         self._last_emitted_bpm: float | None = None
+        # Phase predictor for synthesizing beats when BeatNet drops them.
+        # `_next_predicted_beat_ms` is in the chunk-timestamp domain so it
+        # can be compared directly to chunk.timestamp_ms in on_audio_chunk.
+        self._next_predicted_beat_ms: float | None = None
+        self._beat_interval_ms: float | None = None
+        # Time of the last beat we actually emitted (real or synthetic).
+        # Used to enforce the minimum-gap rule that keeps double beats
+        # from sneaking through when a real beat arrives shortly before
+        # a predicted synth.
+        self._last_emitted_beat_ms: float | None = None
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -79,6 +104,9 @@ class SessionPipeline:
         self._skip.reset()
         self._beat_history_ms = []
         self._last_emitted_bpm = None
+        self._next_predicted_beat_ms = None
+        self._beat_interval_ms = None
+        self._last_emitted_beat_ms = None
 
         out: list[DownstreamEnvelope] = [
             session_ready(msg.sessionId, self._state.next_seq()),
@@ -104,6 +132,9 @@ class SessionPipeline:
             self._state.reset_inference(msg.newPositionMs)
             self._beat_history_ms = []
             self._last_emitted_bpm = None
+            self._next_predicted_beat_ms = None
+            self._beat_interval_ms = None
+            self._last_emitted_beat_ms = None
             return [
                 inference_status(
                     self._state.config.session_id,
@@ -158,15 +189,40 @@ class SessionPipeline:
         with stage_timer("beat.drain"):
             beat_events = list(self._beat.get_events())
         for ev in beat_events:
+            # Real beats are ground truth: track the tempo lock with them
+            # but only emit if they're at least one min-gap past the last
+            # emitted beat. Suppresses the case where BeatNet fires
+            # slightly before a predicted synth — without this gate the
+            # rig would jolt twice in one musical beat.
+            interval = self._beat_interval_ms
+            if (
+                interval is not None
+                and self._last_emitted_beat_ms is not None
+                and (ev.beat_time_ms - self._last_emitted_beat_ms)
+                < SYNTH_MIN_GAP_FRACTION * interval
+            ):
+                # Still re-anchor the predictor so the next synth lines
+                # up with this real beat — we just don't emit it.
+                self._next_predicted_beat_ms = ev.beat_time_ms + interval
+                new_beats.append(ev.beat_time_ms)
+                continue
+            # Always re-anchor the predictor on a real beat. The previous
+            # "snap only if close to predicted" rule let real and synth
+            # beats coexist on out-of-phase grids and produced doubles.
+            if interval is not None:
+                self._next_predicted_beat_ms = ev.beat_time_ms + interval
             out.append(
                 beat_update(
                     state.config.session_id,
                     state.next_seq(),
                     beat_time_ms=ev.beat_time_ms,
                     confidence=ev.confidence,
+                    is_downbeat=ev.is_downbeat,
+                    synthetic=False,
                 )
             )
             state.last_beat_emit_seq = state.out_sequence
+            self._last_emitted_beat_ms = ev.beat_time_ms
             new_beats.append(ev.beat_time_ms)
 
         if new_beats:
@@ -174,16 +230,65 @@ class SessionPipeline:
             if len(self._beat_history_ms) > TEMPO_WINDOW_SIZE:
                 self._beat_history_ms = self._beat_history_ms[-TEMPO_WINDOW_SIZE:]
             bpm = _estimate_bpm(self._beat_history_ms)
-            if bpm is not None and self._should_emit_bpm(bpm):
-                out.append(
-                    tempo_update(
-                        state.config.session_id,
-                        state.next_seq(),
-                        bpm=bpm,
-                        confidence=0.7,
+            if bpm is not None:
+                self._beat_interval_ms = 60_000.0 / bpm
+                # Initialize the predictor on the first stable tempo lock.
+                # Anchor on the most recent real beat — everything after
+                # that gets synthesized at interval steps unless BeatNet
+                # gives us another real beat to resync to.
+                if (
+                    self._next_predicted_beat_ms is None
+                    and len(self._beat_history_ms) >= SYNTH_MIN_BEATS_TO_LOCK
+                ):
+                    self._next_predicted_beat_ms = (
+                        self._beat_history_ms[-1] + self._beat_interval_ms
                     )
-                )
-                self._last_emitted_bpm = bpm
+                if self._should_emit_bpm(bpm):
+                    out.append(
+                        tempo_update(
+                            state.config.session_id,
+                            state.next_seq(),
+                            bpm=bpm,
+                            confidence=0.7,
+                        )
+                    )
+                    self._last_emitted_bpm = bpm
+
+        # Synthesize any predicted beats whose time has now passed.
+        # Capped at MAX_BURST per chunk so a long playback gap (paused
+        # tab, network stall) doesn't fire a flurry on resume.
+        if (
+            self._next_predicted_beat_ms is not None
+            and self._beat_interval_ms is not None
+        ):
+            MAX_BURST = 4
+            burst = 0
+            while (
+                self._next_predicted_beat_ms <= chunk.timestamp_ms
+                and burst < MAX_BURST
+            ):
+                t = self._next_predicted_beat_ms
+                # Same min-gap filter as for real beats: don't emit a
+                # synth that would land on top of the previous emission.
+                if (
+                    self._last_emitted_beat_ms is None
+                    or (t - self._last_emitted_beat_ms)
+                    >= SYNTH_MIN_GAP_FRACTION * self._beat_interval_ms
+                ):
+                    out.append(
+                        beat_update(
+                            state.config.session_id,
+                            state.next_seq(),
+                            beat_time_ms=t,
+                            confidence=0.7,
+                            is_downbeat=False,
+                            synthetic=True,
+                        )
+                    )
+                    state.last_beat_emit_seq = state.out_sequence
+                    self._last_emitted_beat_ms = t
+                self._next_predicted_beat_ms += self._beat_interval_ms
+                burst += 1
 
         # Skip-BART (or mock) drain. Real adapter buffers internally and emits
         # frames in bursts whenever its inference window fires; the mock emits
@@ -227,24 +332,46 @@ class SessionPipeline:
         return self._state
 
     def _should_emit_bpm(self, bpm: float) -> bool:
-        if self._last_emitted_bpm is None:
-            return True
-        # Throttle: emit only when BPM moves more than 0.5 — otherwise the
-        # frontend gets a tempo.update on every beat.
-        return abs(bpm - self._last_emitted_bpm) > 0.5
+        # No throttle: emit on every beat-history change. The frontend
+        # surfaces BPM in a live debug panel; suppressing small deltas
+        # made the readout look stale on songs whose tempo drifts within
+        # the throttle's deadband.
+        return self._last_emitted_bpm is None or bpm != self._last_emitted_bpm
 
 
 def _estimate_bpm(beat_times_ms: list[float]) -> float | None:
+    """Estimate BPM from a window of recent beat times.
+
+    Real-world beat trackers miss beats. When that happens, the intervals
+    between *detected* beats become bimodal: clusters around the true
+    interval ``X`` and around ``2X`` (one skip), occasionally ``3X``. The
+    median falls between clusters and reports half-tempo — which is what
+    we kept seeing in practice (e.g., BPM=68 on 130-BPM music).
+
+    Using the **25th-percentile** interval inside the plausible-tempo
+    range (40–200 BPM ≈ 300–1500 ms) instead is robust to this: as long
+    as at least a quarter of the detected intervals are the true beat
+    interval, p25 lands inside that cluster. If the tracker is missing
+    *most* beats — i.e., the true interval doesn't even reach p25 — the
+    estimate halves, but we surface half-tempo only when that's all the
+    data supports.
+    """
     if len(beat_times_ms) < TEMPO_MIN_BEATS:
         return None
     intervals = [b - a for a, b in zip(beat_times_ms, beat_times_ms[1:]) if b > a]
-    if not intervals:
+    # Reject implausible intervals up front so a single tracker glitch
+    # (e.g., a 0.22 s spike between two real beats) can't drag the
+    # percentile selection.
+    min_interval = 60_000.0 / TEMPO_MAX_BPM
+    max_interval = 60_000.0 / TEMPO_MIN_BPM
+    intervals = [i for i in intervals if min_interval <= i <= max_interval]
+    if len(intervals) < 3:
         return None
     intervals.sort()
-    median = intervals[len(intervals) // 2]
-    if median <= 0:
+    p25 = intervals[len(intervals) // 4]
+    if p25 <= 0:
         return None
-    bpm = 60_000.0 / median
+    bpm = 60_000.0 / p25
     if bpm < TEMPO_MIN_BPM or bpm > TEMPO_MAX_BPM:
         return None
     return bpm

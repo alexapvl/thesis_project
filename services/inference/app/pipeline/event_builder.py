@@ -35,7 +35,12 @@ def session_ready(session_id: str, sequence: int) -> SessionReady:
 
 
 def beat_update(
-    session_id: str, sequence: int, beat_time_ms: float, confidence: float | None
+    session_id: str,
+    sequence: int,
+    beat_time_ms: float,
+    confidence: float | None,
+    is_downbeat: bool = False,
+    synthetic: bool = False,
 ) -> BeatUpdate:
     return BeatUpdate(
         version=settings.protocol_version,
@@ -44,6 +49,8 @@ def beat_update(
         sequence=sequence,
         beatTimeMs=beat_time_ms,
         confidence=confidence,
+        isDownbeat=is_downbeat,
+        synthetic=synthetic,
     )
 
 
