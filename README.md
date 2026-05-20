@@ -39,8 +39,7 @@ pip install -r services/inference/requirements.txt
 pnpm --filter web dev
 
 # Terminal 2 — backend
-conda activate uni
-pnpm dev:server   # or: uvicorn app.api.ws:app --reload --app-dir services/inference
+conda run -n uni pnpm dev:server
 ```
 
 ## Verify model setup
