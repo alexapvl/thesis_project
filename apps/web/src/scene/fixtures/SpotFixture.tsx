@@ -8,10 +8,14 @@ import { exponentialAlpha, smoothScalar } from '@/scene/mappers/smoothing';
 import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
 import { useStore } from '@/store';
 
+const HOVER_TINT = '#22d3ee';
+
 type Props = {
   instance: FixtureInstance;
   selected: boolean;
+  hovered: boolean;
   onSelect: (id: string) => void;
+  onHover: (id: string | null) => void;
 };
 
 const SPOT_INTENSITY_GAIN = 60;
@@ -84,7 +88,7 @@ function createHazeConeTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-export function SpotFixture({ instance, selected, onSelect }: Props) {
+export function SpotFixture({ instance, selected, hovered, onSelect, onHover }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
@@ -101,6 +105,7 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
     const obj = new THREE.Mesh(new THREE.CircleGeometry(1, 32), material);
     obj.rotation.x = -Math.PI / 2;
     obj.renderOrder = 1;
+    obj.raycast = () => null;
     return obj;
   }, []);
   const colorScratch = useMemo(() => new THREE.Color(), []);
@@ -249,6 +254,15 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         e.stopPropagation();
         onSelect(instance.id);
       }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHover(instance.id);
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => {
+        onHover(null);
+        document.body.style.cursor = 'default';
+      }}
     >
       <spotLight
         ref={lightRef}
@@ -287,7 +301,13 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
           <cylinderGeometry args={[0.17, 0.17, 0.04, 20]} />
           <meshStandardMaterial ref={lensMatRef} color={HEAD_COLOR} />
         </mesh>
-        <mesh ref={hazeConeRef} geometry={hazeConeGeom} position={[0, 0, -0.22]} renderOrder={1}>
+        <mesh
+          ref={hazeConeRef}
+          geometry={hazeConeGeom}
+          position={[0, 0, -0.22]}
+          renderOrder={1}
+          raycast={() => null}
+        >
           <meshBasicMaterial
             map={hazeConeTexture}
             transparent
@@ -299,8 +319,15 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         </mesh>
       </group>
 
+      {hovered && !selected && (
+        <mesh raycast={() => null}>
+          <boxGeometry args={[0.6, 0.75, 0.6]} />
+          <meshBasicMaterial color={HOVER_TINT} wireframe />
+        </mesh>
+      )}
+
       {selected && (
-        <mesh>
+        <mesh raycast={() => null}>
           <boxGeometry args={[0.55, 0.7, 0.55]} />
           <meshBasicMaterial color={SELECTED_TINT} wireframe />
         </mesh>

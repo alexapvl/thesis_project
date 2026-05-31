@@ -6,15 +6,20 @@ import { mapLightingFrame } from '@/scene/mappers/mapLightingFrame';
 import { useSmoothedLighting } from '@/scene/mappers/SmoothedLightingProvider';
 import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
 
+const HOVER_TINT = '#22d3ee';
+const SELECTED_TINT = '#fbbf24';
+
 type Props = {
   instance: FixtureInstance;
   selected: boolean;
+  hovered: boolean;
   onSelect: (id: string) => void;
+  onHover: (id: string | null) => void;
 };
 
 const POINT_INTENSITY_GAIN = 30;
 
-export function PointFixture({ instance, selected, onSelect }: Props) {
+export function PointFixture({ instance, selected, hovered, onSelect, onHover }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const colorScratch = useMemo(() => new THREE.Color(), []);
@@ -53,12 +58,27 @@ export function PointFixture({ instance, selected, onSelect }: Props) {
         e.stopPropagation();
         onSelect(instance.id);
       }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHover(instance.id);
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={() => {
+        onHover(null);
+        document.body.style.cursor = 'default';
+      }}
     >
       <pointLight ref={lightRef} distance={distance} />
       <mesh>
         <sphereGeometry args={[0.18, 16, 16]} />
-        <meshBasicMaterial color={selected ? '#fbbf24' : '#cbd5e1'} />
+        <meshBasicMaterial color={selected ? SELECTED_TINT : '#cbd5e1'} />
       </mesh>
+      {hovered && !selected && (
+        <mesh raycast={() => null}>
+          <sphereGeometry args={[0.24, 16, 16]} />
+          <meshBasicMaterial color={HOVER_TINT} wireframe />
+        </mesh>
+      )}
     </group>
   );
 }
