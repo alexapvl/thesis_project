@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TransformControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { BUILTIN_FIXTURES } from '@stl/fixtures';
+import { BUILTIN_FIXTURES, fixturePlacementMeta } from '@stl/fixtures';
 import { useStore } from '@/store';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
@@ -72,7 +72,7 @@ export function TargetHandle({ setOrbitEnabled }: Props) {
 
   if (!selected || placement) return null;
   const def = BUILTIN_FIXTURES.find((d) => d.typeId === selected.definitionId);
-  if (def?.kind !== 'spot') return null;
+  if (!def || !fixturePlacementMeta(def).aims) return null;
 
   return (
     <>

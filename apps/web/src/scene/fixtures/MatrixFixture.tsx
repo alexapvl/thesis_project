@@ -1,0 +1,111 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { BUILTIN_FIXTURES, type FixtureInstance } from '@stl/fixtures';
+import { mapLightingFrame } from '@/scene/mappers/mapLightingFrame';
+import { useSmoothedLighting } from '@/scene/mappers/SmoothedLightingProvider';
+import { downbeatAccent, readOverrideNumber } from '@/scene/mappers/fixtureBehavior';
+import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
+import { useStore } from '@/store';
+import {
+  fixturePointerHandlers,
+  HOVER_TINT,
+  type FixtureInteractionProps,
+} from './fixture-interaction';
+
+type Props = FixtureInteractionProps & { instance: FixtureInstance };
+
+const _dummy = new THREE.Object3D();
+const _color = new THREE.Color();
+
+export function MatrixFixture({ instance, selected, hovered, onSelect, onHover }: Props) {
+  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const colorScratch = useMemo(() => new THREE.Color(), []);
+  const smoothed = useSmoothedLighting();
+  const preview = useTransformPreview();
+
+  const definition = BUILTIN_FIXTURES.find((d) => d.typeId === instance.definitionId);
+  const defaults = definition?.defaultProps;
+  const gridSize = Math.round(readOverrideNumber(instance.overrides, defaults, 'gridSize', 8));
+  const panelSize = readOverrideNumber(instance.overrides, defaults, 'panelSize', 1.4);
+  const count = gridSize * gridSize;
+
+  const cellOffsets = useMemo(() => {
+    const out: { x: number; z: number; dist: number }[] = [];
+    const step = panelSize / gridSize;
+    const cx = (gridSize - 1) / 2;
+    const cz = (gridSize - 1) / 2;
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        const dx = col - cx;
+        const dz = row - cz;
+        out.push({
+          x: (col - cx) * step,
+          z: (row - cz) * step,
+          dist: Math.sqrt(dx * dx + dz * dz),
+        });
+      }
+    }
+    return out;
+  }, [gridSize, panelSize]);
+
+  useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    cellOffsets.forEach((cell, i) => {
+      _dummy.position.set(cell.x, 0.05, cell.z);
+      _dummy.updateMatrix();
+      mesh.setMatrixAt(i, _dummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [cellOffsets]);
+
+  useFrame(() => {
+    const g = groupRef.current;
+    if (!g) return;
+    const live = preview.current.fixtureId === instance.id;
+    if (live && preview.current.position) g.position.copy(preview.current.position);
+    else g.position.set(...instance.position);
+    if (live && preview.current.rotation) g.rotation.copy(preview.current.rotation);
+    else g.rotation.set(...instance.rotation);
+
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    const lighting = useStore.getState().lighting;
+    const accent = downbeatAccent(Date.now(), lighting.lastDownbeatTimeMs, 300);
+    const render = mapLightingFrame(instance, definition, smoothed.current, colorScratch);
+    const maxDist = Math.sqrt(2) * ((gridSize - 1) / 2);
+
+    cellOffsets.forEach((cell, i) => {
+      const ripple = accent * Math.max(0, 1 - Math.abs(cell.dist - accent * maxDist * 2) / maxDist);
+      const bright = render.intensity * (0.15 + ripple * 0.85);
+      _color.copy(render.color);
+      _color.offsetHSL(cell.dist * 0.02, 0, bright * 0.1 - 0.05);
+      mesh.setColorAt(i, _color);
+    });
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
+
+  return (
+    <group ref={groupRef} position={instance.position} rotation={instance.rotation} {...handlers}>
+      <mesh>
+        <boxGeometry args={[panelSize + 0.08, 0.06, panelSize + 0.08]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+        <boxGeometry args={[panelSize / gridSize * 0.75, 0.04, panelSize / gridSize * 0.75]} />
+        <meshStandardMaterial emissive="#000000" emissiveIntensity={1} />
+      </instancedMesh>
+      {hovered && !selected && (
+        <mesh raycast={() => null}>
+          <boxGeometry args={[panelSize + 0.12, 0.12, panelSize + 0.12]} />
+          <meshBasicMaterial color={HOVER_TINT} wireframe />
+        </mesh>
+      )}
+    </group>
+  );
+}

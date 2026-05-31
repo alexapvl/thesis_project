@@ -182,6 +182,20 @@ kbd {
   gap: 8px;
 }
 
+.catalog-group {
+  margin-bottom: 10px;
+}
+
+.catalog-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 4px;
+  padding-left: 2px;
+}
+
 .catalog-header,
 .editor-header,
 .debug-header {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import { BUILTIN_FIXTURES } from '@stl/fixtures';
+import { BUILTIN_FIXTURES, fixturePlacementMeta } from '@stl/fixtures';
 import { useStore } from '@/store';
 import { instantiateFixture } from '@/scene/fixtures/instantiate';
 import { snapVec3 } from '@/scene/document/snap';
@@ -51,7 +51,7 @@ export function DragPlacementController() {
         debugLog('warn', `drop ignored: ${r.reason} (tilt the camera down)`);
         return;
       }
-      const defaultY = def.kind === 'spot' ? 4 : 2;
+      const defaultY = fixturePlacementMeta(def).mountHeight;
       let pos: Vec3 = [r.point[0], defaultY, r.point[2]];
       if (gridSnap) pos = snapVec3(pos, gridSize);
       const inst = instantiateFixture(def, newFixtureId(), pos);

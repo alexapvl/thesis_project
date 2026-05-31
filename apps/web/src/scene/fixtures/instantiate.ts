@@ -1,4 +1,4 @@
-import type { FixtureDefinition, FixtureInstance } from '@stl/fixtures';
+import { fixturePlacementMeta, type FixtureDefinition, type FixtureInstance } from '@stl/fixtures';
 import type { Vec3 } from '@/scene/document/reducer';
 
 let counter = 0;
@@ -9,10 +9,10 @@ export function instantiateFixture(
   position: Vec3,
 ): FixtureInstance {
   counter += 1;
-  const target: Vec3 =
-    def.kind === 'spot'
-      ? [position[0], 0, position[2]] // spots aim at the floor below them by default
-      : [position[0], position[1], position[2]];
+  const { aims } = fixturePlacementMeta(def);
+  const target: Vec3 = aims
+    ? [position[0], 0, position[2]]
+    : [position[0], position[1], position[2]];
 
   return {
     id,
