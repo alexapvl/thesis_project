@@ -13,39 +13,24 @@ import {
 } from '@/scene/mappers/fixtureBehavior';
 import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
 import { useStore } from '@/store';
-import {
-  fixturePointerHandlers,
-  HOVER_TINT,
-  SELECTED_TINT,
-  type FixtureInteractionProps,
-} from './fixture-interaction';
+import { fixturePointerHandlers } from './fixture-interaction';
 import { createHazeConeTexture, createPoolTexture } from './haze-textures';
+import type { AimingFixtureVisual } from './aiming-visual';
 
-export type AimingFixtureVisual = {
-  intensityGain: number;
-  lensEmissiveGain: number;
-  poolOpacityGain: number;
-  hazeOpacityGain: number;
-  hazeMaxLength: number;
-  hazeOpacityCap: number;
-  downbeatRadiusBoost: number;
-  moveMinDistance: number;
-  softHaze: boolean;
-  saturateColor: boolean;
-  headScale: number;
-};
-
-type Props = FixtureInteractionProps & {
-  instance: FixtureInstance;
-  visual: AimingFixtureVisual;
-};
-
-const BASE_COLOR = '#475569';
-const ARM_COLOR = '#334155';
-const HEAD_COLOR = '#1e293b';
 const FLOOR_Y = 0.02;
 
-export function AimingFixture({ instance, selected, hovered, onSelect, onHover, visual }: Props) {
+type AimingOptions = {
+  /** Shared lens material (e.g. wash LED array). When set, hook drives this instead of lensMatRef. */
+  lensMaterial?: THREE.MeshStandardMaterial;
+};
+
+export function useAimingFixture(
+  instance: FixtureInstance,
+  visual: AimingFixtureVisual,
+  onSelect: (id: string) => void,
+  onHover: (id: string | null) => void,
+  options?: AimingOptions,
+) {
   const groupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
@@ -84,8 +69,7 @@ export function AimingFixture({ instance, selected, hovered, onSelect, onHover, 
 
   const definition = BUILTIN_FIXTURES.find((d) => d.typeId === instance.definitionId);
   const defaults = definition?.defaultProps;
-  const angle =
-    readOverrideNumber(instance.overrides, defaults, 'angleRad', Math.PI / 6);
+  const angle = readOverrideNumber(instance.overrides, defaults, 'angleRad', Math.PI / 6);
   const distance = readOverrideNumber(instance.overrides, defaults, 'distance', 30);
   const penumbra = readOverrideNumber(instance.overrides, defaults, 'penumbra', 0.2);
   const moveRadius = readOverrideNumber(instance.overrides, defaults, 'moveRadius', 3.5);
@@ -104,7 +88,6 @@ export function AimingFixture({ instance, selected, hovered, onSelect, onHover, 
   }, [angle]);
 
   const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
-  const hs = visual.headScale;
 
   useEffect(() => {
     const poolMaterial = poolObj.material as THREE.MeshBasicMaterial;
@@ -175,17 +158,18 @@ export function AimingFixture({ instance, selected, hovered, onSelect, onHover, 
       useStore.getState().lighting.lastDownbeatTimeMs,
       180,
     );
-    let intensity = render.intensity * (1 + accent * 0.35);
+    const intensity = render.intensity * (1 + accent * 0.35);
     if (lightRef.current) {
       const c = render.color.clone();
       if (visual.saturateColor) c.setHSL(c.getHSL({ h: 0, s: 0, l: 0 }).h, 1, 0.55);
       lightRef.current.color.copy(c);
       lightRef.current.intensity = intensity * visual.intensityGain;
     }
-    if (lensMatRef.current) {
-      lensMatRef.current.color.copy(render.color);
-      lensMatRef.current.emissive.copy(render.color);
-      lensMatRef.current.emissiveIntensity = intensity * visual.lensEmissiveGain;
+    const lens = options?.lensMaterial ?? lensMatRef.current;
+    if (lens) {
+      lens.color.copy(render.color);
+      lens.emissive.copy(render.color);
+      lens.emissiveIntensity = intensity * visual.lensEmissiveGain;
     }
 
     const pool = poolObj;
@@ -230,123 +214,18 @@ export function AimingFixture({ instance, selected, hovered, onSelect, onHover, 
     }
   });
 
-  return (
-    <group
-      ref={groupRef}
-      position={instance.position}
-      rotation={instance.rotation}
-      {...handlers}
-    >
-      <spotLight
-        ref={lightRef}
-        angle={angle}
-        penumbra={penumbra}
-        distance={distance}
-        decay={2}
-        target={targetObj}
-        castShadow={false}
-      />
-
-      <mesh position={[0, -0.2, 0]}>
-        <cylinderGeometry args={[0.22 * hs, 0.28 * hs, 0.12, 20]} />
-        <meshStandardMaterial
-          color={selected ? SELECTED_TINT : BASE_COLOR}
-          metalness={0.4}
-          roughness={0.6}
-        />
-      </mesh>
-
-      <mesh position={[-0.2 * hs, 0, 0]}>
-        <boxGeometry args={[0.05, 0.36 * hs, 0.08]} />
-        <meshStandardMaterial color={selected ? SELECTED_TINT : ARM_COLOR} metalness={0.3} />
-      </mesh>
-      <mesh position={[0.2 * hs, 0, 0]}>
-        <boxGeometry args={[0.05, 0.36 * hs, 0.08]} />
-        <meshStandardMaterial color={selected ? SELECTED_TINT : ARM_COLOR} metalness={0.3} />
-      </mesh>
-
-      <group ref={headRef} position={[0, 0.05, 0]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.16 * hs, 0.16 * hs, 0.42 * hs, 20]} />
-          <meshStandardMaterial color={HEAD_COLOR} metalness={0.5} roughness={0.4} />
-        </mesh>
-        <mesh position={[0, 0, -0.22 * hs]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.17 * hs, 0.17 * hs, 0.04, 20]} />
-          <meshStandardMaterial ref={lensMatRef} color={HEAD_COLOR} />
-        </mesh>
-        <mesh
-          ref={hazeConeRef}
-          geometry={hazeConeGeom}
-          position={[0, 0, -0.22 * hs]}
-          renderOrder={1}
-          raycast={() => null}
-        >
-          <meshBasicMaterial
-            map={hazeConeTexture}
-            transparent
-            opacity={0}
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-      </group>
-
-      {hovered && !selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[0.6 * hs, 0.75 * hs, 0.6 * hs]} />
-          <meshBasicMaterial color={HOVER_TINT} wireframe />
-        </mesh>
-      )}
-
-      {selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[0.55 * hs, 0.7 * hs, 0.55 * hs]} />
-          <meshBasicMaterial color={SELECTED_TINT} wireframe />
-        </mesh>
-      )}
-    </group>
-  );
+  return {
+    groupRef,
+    headRef,
+    lightRef,
+    lensMatRef,
+    hazeConeRef,
+    hazeConeGeom,
+    hazeConeTexture,
+    targetObj,
+    angle,
+    penumbra,
+    distance,
+    handlers,
+  };
 }
-
-export const SPOT_VISUAL: AimingFixtureVisual = {
-  intensityGain: 60,
-  lensEmissiveGain: 1.5,
-  poolOpacityGain: 0.35,
-  hazeOpacityGain: 0.09,
-  hazeMaxLength: 30,
-  hazeOpacityCap: 0.14,
-  downbeatRadiusBoost: 1.6,
-  moveMinDistance: 1.5,
-  softHaze: false,
-  saturateColor: false,
-  headScale: 1,
-};
-
-export const WASH_VISUAL: AimingFixtureVisual = {
-  intensityGain: 45,
-  lensEmissiveGain: 1.2,
-  poolOpacityGain: 0.5,
-  hazeOpacityGain: 0.06,
-  hazeMaxLength: 28,
-  hazeOpacityCap: 0.1,
-  downbeatRadiusBoost: 1.4,
-  moveMinDistance: 2,
-  softHaze: true,
-  saturateColor: false,
-  headScale: 1.05,
-};
-
-export const BEAM_VISUAL: AimingFixtureVisual = {
-  intensityGain: 90,
-  lensEmissiveGain: 2,
-  poolOpacityGain: 0.2,
-  hazeOpacityGain: 0.14,
-  hazeMaxLength: 40,
-  hazeOpacityCap: 0.2,
-  downbeatRadiusBoost: 2,
-  moveMinDistance: 2.5,
-  softHaze: false,
-  saturateColor: true,
-  headScale: 0.95,
-};

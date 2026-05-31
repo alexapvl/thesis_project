@@ -5,37 +5,71 @@ import { BUILTIN_FIXTURES, fixturePlacementMeta, type FixtureKind } from '@stl/f
 import { useStore } from '@/store';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
+import {
+  BeamHead,
+  BeamStatic,
+  FresnelSpotHead,
+  FresnelSpotStatic,
+  LedParWashHead,
+  LedParWashStatic,
+} from '@/scene/fixtures/bodies';
 import { raycastFloor } from './raycastFloor';
 
 const GHOST = '#fbbf24';
 const ghostMat = { color: GHOST, transparent: true, opacity: 0.5 };
 
-function AimingGhost({ target, pos }: { target: THREE.Vector3; pos: Vec3 }) {
+/** Head pitched so lens (-Z) points at the default floor target below. */
+const GHOST_HEAD_DOWN: [number, number, number] = [-Math.PI / 2, 0, 0];
+
+function AimingBodyGhost({ kind }: { kind: FixtureKind }) {
+  const staticPart =
+    kind === 'spot' ? (
+      <FresnelSpotStatic ghost />
+    ) : kind === 'wash' ? (
+      <LedParWashStatic ghost />
+    ) : (
+      <BeamStatic ghost />
+    );
+  const headPart =
+    kind === 'spot' ? (
+      <FresnelSpotHead ghost />
+    ) : kind === 'wash' ? (
+      <LedParWashHead ghost />
+    ) : (
+      <BeamHead ghost />
+    );
+
   return (
     <>
-      <mesh position={[0, -0.2, 0]}>
-        <cylinderGeometry args={[0.22, 0.28, 0.12, 20]} />
-        <meshStandardMaterial {...ghostMat} />
-      </mesh>
-      <mesh position={[-0.2, 0, 0]}>
-        <boxGeometry args={[0.05, 0.36, 0.08]} />
-        <meshStandardMaterial {...ghostMat} />
-      </mesh>
-      <mesh position={[0.2, 0, 0]}>
-        <boxGeometry args={[0.05, 0.36, 0.08]} />
-        <meshStandardMaterial {...ghostMat} />
-      </mesh>
-      <mesh position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.16, 0.16, 0.42, 20]} />
-        <meshStandardMaterial {...ghostMat} />
-      </mesh>
+      {staticPart}
+      <group position={[0, 0.05, 0]} rotation={GHOST_HEAD_DOWN}>
+        {headPart}
+      </group>
+    </>
+  );
+}
+
+function AimingGhost({
+  target,
+  pos,
+  kind,
+}: {
+  target: THREE.Vector3;
+  pos: Vec3;
+  kind: FixtureKind;
+}) {
+  return (
+    <>
+      <AimingBodyGhost kind={kind} />
       <line>
         <bufferGeometry
           attach="geometry"
           ref={(geom) => {
             if (!geom) return;
             const pts = new Float32Array([
-              0, 0, 0,
+              0,
+              0,
+              0,
               target.x - pos[0],
               -pos[1],
               target.z - pos[2],
@@ -160,10 +194,18 @@ export function PlacementGhost() {
 
   const { aims } = fixturePlacementMeta(def);
   const target = aims ? new THREE.Vector3(pos[0], 0, pos[2]) : null;
+  const isKnownAiming =
+    def.kind === 'spot' || def.kind === 'wash' || def.kind === 'beam';
 
   return (
     <group position={pos}>
-      {aims && target ? <AimingGhost target={target} pos={pos} /> : <KindGhost kind={def.kind} />}
+      {aims && target && isKnownAiming ? (
+        <AimingGhost target={target} pos={pos} kind={def.kind} />
+      ) : aims && target ? (
+        <AimingGhost target={target} pos={pos} kind="spot" />
+      ) : (
+        <KindGhost kind={def.kind} />
+      )}
     </group>
   );
 }
