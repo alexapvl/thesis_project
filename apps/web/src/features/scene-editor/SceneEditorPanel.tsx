@@ -2,7 +2,9 @@ import { useStore } from '@/store';
 
 export function SceneEditorPanel() {
   const fixtures = useStore((s) => s.scene.doc.fixtures);
-  const selectedId = useStore((s) => s.scene.doc.selectedFixtureId);
+  const structures = useStore((s) => s.scene.doc.structures);
+  const selectedFixtureId = useStore((s) => s.scene.doc.selectedFixtureId);
+  const selectedStructureId = useStore((s) => s.scene.doc.selectedStructureId);
   const lastAutosave = useStore((s) => s.persistence.lastAutosaveAt);
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
@@ -15,7 +17,8 @@ export function SceneEditorPanel() {
   const setGridSize = useStore((s) => s.editorSetGridSize);
   const newFixtureId = useStore((s) => s.newFixtureId);
 
-  const selected = fixtures.find((f) => f.id === selectedId);
+  const selectedFixture = fixtures.find((f) => f.id === selectedFixtureId);
+  const selectedStructure = structures.find((s) => s.id === selectedStructureId);
 
   return (
     <div className="editor-panel">
@@ -33,37 +36,64 @@ export function SceneEditorPanel() {
       <div className="editor-row">
         <button
           type="button"
-          disabled={!selected}
-          onClick={() => selected && dispatch({
-            type: 'fixture.duplicate',
-            id: selected.id,
-            newId: newFixtureId(),
-          })}
+          disabled={!selectedFixture && !selectedStructure}
+          onClick={() => {
+            if (selectedStructure) {
+              dispatch({
+                type: 'structure.duplicate',
+                id: selectedStructure.id,
+                newId: newFixtureId(),
+              });
+            } else if (selectedFixture) {
+              dispatch({
+                type: 'fixture.duplicate',
+                id: selectedFixture.id,
+                newId: newFixtureId(),
+              });
+            }
+          }}
         >
           Duplicate
         </button>
         <button
           type="button"
-          disabled={!selected}
-          onClick={() => selected && dispatch({ type: 'fixture.remove', id: selected.id })}
+          disabled={!selectedFixture && !selectedStructure}
+          onClick={() => {
+            if (selectedStructure) {
+              dispatch({ type: 'structure.remove', id: selectedStructure.id });
+            } else if (selectedFixture) {
+              dispatch({ type: 'fixture.remove', id: selectedFixture.id });
+            }
+          }}
         >
           Delete
         </button>
-        <button
-          type="button"
-          disabled={!selected}
-          onClick={() =>
-            selected &&
-            dispatch({
-              type: 'fixture.update',
-              id: selected.id,
-              patch: { enabled: !selected.enabled },
-            })
-          }
-        >
-          {selected?.enabled === false ? 'Enable' : 'Disable'}
-        </button>
+        {selectedFixture && (
+          <button
+            type="button"
+            onClick={() =>
+              dispatch({
+                type: 'fixture.update',
+                id: selectedFixture.id,
+                patch: { enabled: !selectedFixture.enabled },
+              })
+            }
+          >
+            {selectedFixture.enabled === false ? 'Enable' : 'Disable'}
+          </button>
+        )}
       </div>
+
+      {selectedFixture?.mount && (
+        <div className="editor-row">
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'fixture.unmount', id: selectedFixture.id })}
+          >
+            Unmount
+          </button>
+        </div>
+      )}
 
       <div className="editor-row">
         <label>
@@ -89,21 +119,36 @@ export function SceneEditorPanel() {
       </div>
 
       <div className="editor-stat">
-        fixtures: <strong>{fixtures.length}</strong>
-        {selected && (
-          <>
-            {' · selected: '}
-            <span title={selected.id}>{selected.name}</span>
-          </>
-        )}
+        structures: <strong>{structures.length}</strong>
+        {' · '}fixtures: <strong>{fixtures.length}</strong>
       </div>
 
-      {selected && (
+      {selectedStructure && (
         <div className="editor-detail">
-          <div>id: <code>{selected.id.slice(0, 8)}</code></div>
-          <div>pos: {selected.position.map((n) => n.toFixed(2)).join(', ')}</div>
-          <div>rot: {selected.rotation.map((n) => n.toFixed(2)).join(', ')}</div>
-          <div>target: {selected.target.map((n) => n.toFixed(2)).join(', ')}</div>
+          <div>
+            structure: <span title={selectedStructure.id}>{selectedStructure.name}</span>
+          </div>
+          <div>pos: {selectedStructure.position.map((n) => n.toFixed(2)).join(', ')}</div>
+          <div>rot: {selectedStructure.rotation.map((n) => n.toFixed(2)).join(', ')}</div>
+        </div>
+      )}
+
+      {selectedFixture && (
+        <div className="editor-detail">
+          <div>
+            fixture: <span title={selectedFixture.id}>{selectedFixture.name}</span>
+            {selectedFixture.mount && (
+              <>
+                {' '}
+                <code>
+                  mounted:{selectedFixture.mount.socketId.slice(0, 12)}
+                </code>
+              </>
+            )}
+          </div>
+          <div>pos: {selectedFixture.position.map((n) => n.toFixed(2)).join(', ')}</div>
+          <div>rot: {selectedFixture.rotation.map((n) => n.toFixed(2)).join(', ')}</div>
+          <div>target: {selectedFixture.target.map((n) => n.toFixed(2)).join(', ')}</div>
         </div>
       )}
 
@@ -117,6 +162,7 @@ export function SceneEditorPanel() {
           <li><kbd>g</kbd> translate · <kbd>r</kbd> rotate</li>
           <li><kbd>Esc</kbd> cancel placement / selection</li>
           <li><kbd>Del</kbd> delete · <kbd>⌘ D</kbd> duplicate</li>
+          <li><kbd>u</kbd> unmount selected fixture</li>
           <li><kbd>⌘ Z</kbd> undo · <kbd>⇧⌘ Z</kbd> redo</li>
         </ul>
       </details>

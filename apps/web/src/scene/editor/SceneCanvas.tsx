@@ -4,6 +4,9 @@ import { Environment, Grid, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '@/store';
 import { FixtureRenderer } from '@/scene/fixtures/FixtureRenderer';
+import { StructureRenderer } from '@/scene/structures/StructureRenderer';
+import { SocketPicker } from './SocketPicker';
+import { StructureTransformHandles } from './StructureTransformHandles';
 import { SmoothedLightingProvider } from '@/scene/mappers/SmoothedLightingProvider';
 import { PlacementModeController } from './PlacementModeController';
 import { DragPlacementController } from './DragPlacementController';
@@ -14,7 +17,9 @@ import { TransformPreviewProvider } from './TransformPreviewProvider';
 
 export function SceneCanvas() {
   const dispatch = useStore((s) => s.sceneDispatch);
-  const placement = useStore((s) => s.editor.pendingFixtureTypeId);
+  const placement = useStore(
+    (s) => s.editor.pendingFixtureTypeId ?? s.editor.pendingStructureTypeId,
+  );
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [transformMode, setTransformMode] = useState<'translate' | 'rotate'>('translate');
 
@@ -37,7 +42,10 @@ export function SceneCanvas() {
         gl.toneMappingExposure = 1.05;
       }}
       onPointerMissed={() => {
-        if (!placement) dispatch({ type: 'selection.set', id: null });
+        if (!placement) {
+          dispatch({ type: 'selection.set', id: null });
+          dispatch({ type: 'structure.select', id: null });
+        }
       }}
     >
       <color attach="background" args={['#0b1220']} />
@@ -56,6 +64,7 @@ export function SceneCanvas() {
       </mesh>
 
       <TransformPreviewProvider>
+        <StructureRenderer />
         <SmoothedLightingProvider>
           <FixtureRenderer />
         </SmoothedLightingProvider>
@@ -63,6 +72,8 @@ export function SceneCanvas() {
         <PlacementModeController />
         <DragPlacementController />
         <PlacementGhost />
+        <SocketPicker />
+        <StructureTransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
         <TransformHandles mode={transformMode} setOrbitEnabled={setOrbitEnabled} />
         <TargetHandle setOrbitEnabled={setOrbitEnabled} />
       </TransformPreviewProvider>

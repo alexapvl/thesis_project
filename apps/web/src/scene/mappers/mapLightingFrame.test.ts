@@ -12,6 +12,7 @@ function makeInstance(overrides: Partial<FixtureInstance> = {}): FixtureInstance
     rotation: [0, 0, 0],
     target: [0, 0, 0],
     groupId: null,
+    mount: null,
     overrides: {},
     ...overrides,
   };

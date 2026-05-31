@@ -70,6 +70,7 @@ type Actions = {
   getFixtureById: (id: string) => FixtureInstance | undefined;
 
   editorSetPlacement: (typeId: string | null) => void;
+  editorSetStructurePlacement: (typeId: string | null) => void;
   editorSetGridSnap: (enabled: boolean) => void;
   editorSetGridSize: (size: number) => void;
 
@@ -118,7 +119,13 @@ export const useStore = create<State & Actions>()(
     lighting: initialLighting,
     scene: { doc: emptyScene(crypto.randomUUID()) },
     history: { past: [], future: [] },
-    editor: { placementMode: 'idle', pendingFixtureTypeId: null, gridSnap: true, gridSize: 0.5 },
+    editor: {
+      placementMode: 'idle',
+      pendingFixtureTypeId: null,
+      pendingStructureTypeId: null,
+      gridSnap: true,
+      gridSize: 0.5,
+    },
     persistence: { lastAutosaveAt: null, lastImportError: null },
     debug: { log: [] },
 
@@ -201,13 +208,34 @@ export const useStore = create<State & Actions>()(
     getFixtureById: (id) => get().scene.doc.fixtures.find((f) => f.id === id),
 
     editorSetPlacement: (typeId) =>
-      set((s) => ({
-        editor: {
-          ...s.editor,
-          placementMode: typeId ? 'click-to-place' : 'idle',
-          pendingFixtureTypeId: typeId,
-        },
-      })),
+      set((s) => {
+        const pendingFixtureTypeId = typeId;
+        const pendingStructureTypeId = typeId ? null : s.editor.pendingStructureTypeId;
+        return {
+          editor: {
+            ...s.editor,
+            placementMode:
+              pendingFixtureTypeId || pendingStructureTypeId ? 'click-to-place' : 'idle',
+            pendingFixtureTypeId,
+            pendingStructureTypeId,
+          },
+        };
+      }),
+
+    editorSetStructurePlacement: (typeId) =>
+      set((s) => {
+        const pendingStructureTypeId = typeId;
+        const pendingFixtureTypeId = typeId ? null : s.editor.pendingFixtureTypeId;
+        return {
+          editor: {
+            ...s.editor,
+            placementMode:
+              pendingFixtureTypeId || pendingStructureTypeId ? 'click-to-place' : 'idle',
+            pendingStructureTypeId,
+            pendingFixtureTypeId,
+          },
+        };
+      }),
     editorSetGridSnap: (enabled) =>
       set((s) => ({ editor: { ...s.editor, gridSnap: enabled } })),
     editorSetGridSize: (gridSize) => set((s) => ({ editor: { ...s.editor, gridSize } })),

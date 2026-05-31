@@ -1,31 +1,35 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import { BUILTIN_FIXTURES, fixturePlacementMeta } from '@stl/fixtures';
+import {
+  BUILTIN_FIXTURES,
+  BUILTIN_STRUCTURES,
+  fixturePlacementMeta,
+  isStructureTypeId,
+} from '@stl/fixtures';
 import { useStore } from '@/store';
 import { instantiateFixture } from '@/scene/fixtures/instantiate';
+import { instantiateStructure } from '@/scene/structures/instantiateStructure';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
 import { raycastFloor } from './raycastFloor';
+import { resolveFixtureDrop } from './resolveFixtureDrop';
 
 export const FIXTURE_DRAG_MIME = 'application/x-stl-fixture-typeid';
 
-/**
- * Drag-to-place: catalog items use HTML5 drag with mime FIXTURE_DRAG_MIME.
- * On drop into the canvas DOM element, raycast the floor and add a fixture.
- * Produces the same FixtureInstance shape as click-to-place.
- */
 export function DragPlacementController() {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
+  const structures = useStore((s) => s.scene.doc.structures);
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
   const dispatch = useStore((s) => s.sceneDispatch);
   const newFixtureId = useStore((s) => s.newFixtureId);
   const debugLog = useStore((s) => s.debugLog);
 
-  const ref = useRef({ camera, gl });
+  const ref = useRef({ camera, gl, structures });
   ref.current.camera = camera;
   ref.current.gl = gl;
+  ref.current.structures = structures;
 
   useEffect(() => {
     const dom = gl.domElement;
@@ -41,22 +45,66 @@ export function DragPlacementController() {
       const typeId = ev.dataTransfer?.getData(FIXTURE_DRAG_MIME);
       if (!typeId) return;
       ev.preventDefault();
+
+      if (isStructureTypeId(typeId)) {
+        const def = BUILTIN_STRUCTURES.find((d) => d.typeId === typeId);
+        if (!def) {
+          debugLog('warn', `dropped unknown structure typeId: ${typeId}`);
+          return;
+        }
+        const r = raycastFloor(dom, ref.current.camera, ev.clientX, ev.clientY);
+        if (!r.ok) {
+          debugLog('warn', `drop ignored: ${r.reason} (tilt the camera down)`);
+          return;
+        }
+        let pos: Vec3 = [r.point[0], 0, r.point[2]];
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        const inst = instantiateStructure(def, newFixtureId(), pos);
+        dispatch({ type: 'structure.add', structure: inst });
+        debugLog('info', `dropped ${def.label} at ${pos.map((n) => n.toFixed(2)).join(', ')}`);
+        return;
+      }
+
       const def = BUILTIN_FIXTURES.find((d) => d.typeId === typeId);
       if (!def) {
         debugLog('warn', `dropped unknown fixture typeId: ${typeId}`);
         return;
       }
-      const r = raycastFloor(dom, ref.current.camera, ev.clientX, ev.clientY);
-      if (!r.ok) {
-        debugLog('warn', `drop ignored: ${r.reason} (tilt the camera down)`);
+
+      const { groundRestHeight } = fixturePlacementMeta(def);
+      const drop = resolveFixtureDrop(
+        dom,
+        ref.current.camera,
+        ev.clientX,
+        ev.clientY,
+        ref.current.structures,
+        groundRestHeight,
+      );
+      if (drop.kind === 'none') {
+        debugLog('warn', `drop ignored: ${drop.reason}`);
         return;
       }
-      const defaultY = fixturePlacementMeta(def).mountHeight;
-      let pos: Vec3 = [r.point[0], defaultY, r.point[2]];
-      if (gridSnap) pos = snapVec3(pos, gridSize);
-      const inst = instantiateFixture(def, newFixtureId(), pos);
-      dispatch({ type: 'fixture.add', fixture: inst });
-      debugLog('info', `dropped ${def.label} at ${pos.map((n) => n.toFixed(2)).join(', ')}`);
+
+      const id = newFixtureId();
+      if (drop.kind === 'mount') {
+        let pos = drop.position;
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        const inst = instantiateFixture(def, id, pos, { rotation: drop.rotation });
+        dispatch({ type: 'fixture.add', fixture: inst });
+        dispatch({
+          type: 'fixture.mount',
+          id,
+          structureId: drop.structureId,
+          socketId: drop.socketId,
+        });
+        debugLog('info', `dropped ${def.label} on structure`);
+      } else {
+        let pos = drop.position;
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        const inst = instantiateFixture(def, id, pos, { onGround: true });
+        dispatch({ type: 'fixture.add', fixture: inst });
+        debugLog('info', `dropped ${def.label} on ground`);
+      }
     };
 
     dom.addEventListener('dragover', onDragOver);

@@ -14,6 +14,7 @@ export function useSceneShortcuts() {
   const undo = useStore((s) => s.sceneUndo);
   const redo = useStore((s) => s.sceneRedo);
   const setPlacement = useStore((s) => s.editorSetPlacement);
+  const setStructurePlacement = useStore((s) => s.editorSetStructurePlacement);
   const newFixtureId = useStore((s) => s.newFixtureId);
 
   useEffect(() => {
@@ -21,41 +22,63 @@ export function useSceneShortcuts() {
       if (isEditableTarget(e.target)) return;
 
       const mod = e.metaKey || e.ctrlKey;
-      const selectedId = useStore.getState().scene.doc.selectedFixtureId;
+      const doc = useStore.getState().scene.doc;
+      const selectedFixtureId = doc.selectedFixtureId;
+      const selectedStructureId = doc.selectedStructureId;
+      const selectedFixture = doc.fixtures.find((f) => f.id === selectedFixtureId);
 
-      // Esc → cancel placement and selection.
       if (e.key === 'Escape') {
         setPlacement(null);
+        setStructurePlacement(null);
         dispatch({ type: 'selection.set', id: null });
+        dispatch({ type: 'structure.select', id: null });
         return;
       }
 
-      // Delete / Backspace → delete selected fixture.
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+      if (e.key.toLowerCase() === 'u' && selectedFixture?.mount) {
         e.preventDefault();
-        dispatch({ type: 'fixture.remove', id: selectedId });
+        dispatch({ type: 'fixture.unmount', id: selectedFixture.id });
         return;
       }
 
-      // Cmd/Ctrl+D → duplicate selected fixture.
-      if (mod && e.key.toLowerCase() === 'd' && selectedId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedStructureId) {
+        e.preventDefault();
+        dispatch({ type: 'structure.remove', id: selectedStructureId });
+        return;
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedFixtureId) {
+        e.preventDefault();
+        dispatch({ type: 'fixture.remove', id: selectedFixtureId });
+        return;
+      }
+
+      if (mod && e.key.toLowerCase() === 'd' && selectedStructureId) {
         e.preventDefault();
         dispatch({
-          type: 'fixture.duplicate',
-          id: selectedId,
+          type: 'structure.duplicate',
+          id: selectedStructureId,
           newId: newFixtureId(),
         });
         return;
       }
 
-      // Cmd/Ctrl+Z (and Cmd/Ctrl+Shift+Z) for undo/redo.
+      if (mod && e.key.toLowerCase() === 'd' && selectedFixtureId) {
+        e.preventDefault();
+        dispatch({
+          type: 'fixture.duplicate',
+          id: selectedFixtureId,
+          newId: newFixtureId(),
+        });
+        return;
+      }
+
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
         return;
       }
-      // Cmd/Ctrl+Y → redo (Windows-style).
       if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
@@ -64,5 +87,5 @@ export function useSceneShortcuts() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dispatch, undo, redo, setPlacement, newFixtureId]);
+  }, [dispatch, undo, redo, setPlacement, setStructurePlacement, newFixtureId]);
 }

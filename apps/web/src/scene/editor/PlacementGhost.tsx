@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { BUILTIN_FIXTURES, fixturePlacementMeta, type FixtureKind } from '@stl/fixtures';
+import {
+  BUILTIN_FIXTURES,
+  BUILTIN_STRUCTURES,
+  fixturePlacementMeta,
+  type FixtureKind,
+  type StructureKind,
+} from '@stl/fixtures';
 import { useStore } from '@/store';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
@@ -13,10 +19,16 @@ import {
   LedParWashHead,
   LedParWashStatic,
 } from '@/scene/fixtures/bodies';
+import { BeamStructure } from '@/scene/structures/BeamStructure';
+import { GoalpostStructure } from '@/scene/structures/GoalpostStructure';
+import { TowerStructure } from '@/scene/structures/TowerStructure';
+import { BasePlateStructure } from '@/scene/structures/BasePlateStructure';
+import { instantiateStructure } from '@/scene/structures/instantiateStructure';
+import { resolveFixtureDrop } from './resolveFixtureDrop';
 import { raycastFloor } from './raycastFloor';
 
-const GHOST = '#fbbf24';
-const ghostMat = { color: GHOST, transparent: true, opacity: 0.5 };
+const WIREFRAME = '#fbbf24';
+const wireframeMat = { color: WIREFRAME, wireframe: true, transparent: true, opacity: 0.85 };
 
 /** Head pitched so lens (-Z) points at the default floor target below. */
 const GHOST_HEAD_DOWN: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -71,13 +83,13 @@ function AimingGhost({
               0,
               0,
               target.x - pos[0],
-              -pos[1],
+              target.y - pos[1],
               target.z - pos[2],
             ]);
             geom.setAttribute('position', new THREE.BufferAttribute(pts, 3));
           }}
         />
-        <lineBasicMaterial color={GHOST} transparent opacity={0.4} />
+        <lineBasicMaterial color={WIREFRAME} transparent opacity={0.4} />
       </line>
     </>
   );
@@ -89,95 +101,172 @@ function KindGhost({ kind }: { kind: FixtureKind }) {
       return (
         <mesh>
           <boxGeometry args={[1.6, 0.12, 0.12]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'matrix':
       return (
         <mesh>
           <boxGeometry args={[1.4, 0.1, 1.4]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'blinder':
       return (
         <mesh>
           <boxGeometry args={[0.5, 0.4, 0.1]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'strobe':
       return (
         <mesh>
           <boxGeometry args={[0.35, 0.28, 0.12]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'par':
       return (
         <mesh rotation={[-Math.PI / 6, 0, 0]}>
           <cylinderGeometry args={[0.14, 0.18, 0.22, 16]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'laser':
       return (
         <mesh>
           <boxGeometry args={[0.2, 0.15, 0.2]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
     case 'point':
       return (
         <mesh>
           <sphereGeometry args={[0.18, 16, 16]} />
-          <meshBasicMaterial {...ghostMat} />
+          <meshBasicMaterial {...wireframeMat} />
         </mesh>
       );
     default:
       return (
         <mesh>
           <boxGeometry args={[0.3, 0.5, 0.3]} />
-          <meshStandardMaterial {...ghostMat} />
+          <meshStandardMaterial {...wireframeMat} />
         </mesh>
       );
   }
 }
 
+function StructureGhost({ kind, pos }: { kind: StructureKind; pos: Vec3 }) {
+  const sdef = BUILTIN_STRUCTURES.find((d) => d.kind === kind);
+  if (!sdef) return null;
+  const ghostInst = instantiateStructure(sdef, 'ghost', pos);
+  const props = {
+    instance: ghostInst,
+    selected: false,
+    hovered: false,
+    onSelect: () => {},
+    onHover: () => {},
+    wireframe: true as const,
+  };
+  switch (kind) {
+    case 'tower':
+      return <TowerStructure {...props} />;
+    case 'beam':
+      return <BeamStructure {...props} />;
+    case 'goalpost':
+      return <GoalpostStructure {...props} />;
+    case 'baseplate':
+      return <BasePlateStructure {...props} />;
+    default:
+      return null;
+  }
+}
+
+type PreviewState =
+  | { kind: 'structure'; pos: Vec3; structureKind: StructureKind }
+  | { kind: 'fixture'; pos: Vec3; rotation?: Vec3; onGround: boolean; fixtureKind: FixtureKind; aims: boolean }
+  | null;
+
 export function PlacementGhost() {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
-  const pendingTypeId = useStore((s) => s.editor.pendingFixtureTypeId);
+  const pendingFixtureTypeId = useStore((s) => s.editor.pendingFixtureTypeId);
+  const pendingStructureTypeId = useStore((s) => s.editor.pendingStructureTypeId);
+  const structures = useStore((s) => s.scene.doc.structures);
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
 
-  const [pos, setPos] = useState<Vec3 | null>(null);
+  const [preview, setPreview] = useState<PreviewState>(null);
   const overRef = useRef(false);
 
   useEffect(() => {
+    const pendingTypeId = pendingStructureTypeId ?? pendingFixtureTypeId;
     if (!pendingTypeId) {
-      setPos(null);
+      setPreview(null);
       return;
     }
     const dom = gl.domElement;
+    const isStructure = pendingStructureTypeId != null;
 
     const onMove = (ev: MouseEvent) => {
       overRef.current = true;
-      const r = raycastFloor(dom, camera, ev.clientX, ev.clientY);
-      if (!r.ok) {
-        setPos(null);
+
+      if (isStructure) {
+        const sdef = BUILTIN_STRUCTURES.find((d) => d.typeId === pendingStructureTypeId);
+        if (!sdef) return;
+        const r = raycastFloor(dom, camera, ev.clientX, ev.clientY);
+        if (!r.ok) {
+          setPreview(null);
+          return;
+        }
+        let pos: Vec3 = [r.point[0], 0, r.point[2]];
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        setPreview({ kind: 'structure', pos, structureKind: sdef.kind });
         return;
       }
-      const def = BUILTIN_FIXTURES.find((d) => d.typeId === pendingTypeId);
+
+      const def = BUILTIN_FIXTURES.find((d) => d.typeId === pendingFixtureTypeId);
       if (!def) return;
-      const defaultY = fixturePlacementMeta(def).mountHeight;
-      let next: Vec3 = [r.point[0], defaultY, r.point[2]];
-      if (gridSnap) next = snapVec3(next, gridSize);
-      setPos(next);
+      const { groundRestHeight, aims } = fixturePlacementMeta(def);
+      const drop = resolveFixtureDrop(
+        dom,
+        camera,
+        ev.clientX,
+        ev.clientY,
+        structures,
+        groundRestHeight,
+      );
+      if (drop.kind === 'none') {
+        setPreview(null);
+        return;
+      }
+      if (drop.kind === 'mount') {
+        let pos = drop.position;
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        setPreview({
+          kind: 'fixture',
+          pos,
+          rotation: drop.rotation,
+          onGround: false,
+          fixtureKind: def.kind,
+          aims,
+        });
+      } else {
+        let pos = drop.position;
+        if (gridSnap) pos = snapVec3(pos, gridSize);
+        setPreview({
+          kind: 'fixture',
+          pos,
+          onGround: true,
+          fixtureKind: def.kind,
+          aims,
+        });
+      }
     };
+
     const onLeave = () => {
       overRef.current = false;
-      setPos(null);
+      setPreview(null);
     };
 
     dom.addEventListener('mousemove', onMove);
@@ -186,25 +275,39 @@ export function PlacementGhost() {
       dom.removeEventListener('mousemove', onMove);
       dom.removeEventListener('mouseleave', onLeave);
     };
-  }, [pendingTypeId, gl, camera, gridSnap, gridSize]);
+  }, [
+    pendingFixtureTypeId,
+    pendingStructureTypeId,
+    structures,
+    gl,
+    camera,
+    gridSnap,
+    gridSize,
+  ]);
 
-  if (!pendingTypeId || !pos) return null;
-  const def = BUILTIN_FIXTURES.find((d) => d.typeId === pendingTypeId);
-  if (!def) return null;
+  if (!preview) return null;
 
-  const { aims } = fixturePlacementMeta(def);
-  const target = aims ? new THREE.Vector3(pos[0], 0, pos[2]) : null;
+  if (preview.kind === 'structure') {
+    return <StructureGhost kind={preview.structureKind} pos={preview.pos} />;
+  }
+
+  const { pos, fixtureKind, aims, onGround } = preview;
+  const target = aims
+    ? onGround
+      ? new THREE.Vector3(pos[0] + 4, pos[1] + 2, pos[2])
+      : new THREE.Vector3(pos[0], 0, pos[2])
+    : null;
   const isKnownAiming =
-    def.kind === 'spot' || def.kind === 'wash' || def.kind === 'beam';
+    fixtureKind === 'spot' || fixtureKind === 'wash' || fixtureKind === 'beam';
 
   return (
-    <group position={pos}>
+    <group position={pos} rotation={preview.rotation ?? [0, 0, 0]}>
       {aims && target && isKnownAiming ? (
-        <AimingGhost target={target} pos={pos} kind={def.kind} />
+        <AimingGhost target={target} pos={pos} kind={fixtureKind} />
       ) : aims && target ? (
         <AimingGhost target={target} pos={pos} kind="spot" />
       ) : (
-        <KindGhost kind={def.kind} />
+        <KindGhost kind={fixtureKind} />
       )}
     </group>
   );

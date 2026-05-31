@@ -5,7 +5,7 @@ import { BUILTIN_FIXTURES, type FixtureInstance } from '@stl/fixtures';
 import { mapLightingFrame } from '@/scene/mappers/mapLightingFrame';
 import { useSmoothedLighting } from '@/scene/mappers/SmoothedLightingProvider';
 import { downbeatAccent, readOverrideNumber } from '@/scene/mappers/fixtureBehavior';
-import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
+import { useFixtureBase } from './useFixtureBase';
 import { useStore } from '@/store';
 import {
   fixturePointerHandlers,
@@ -23,7 +23,7 @@ export function ParFixture({ instance, selected, hovered, onSelect, onHover }: P
   const lightRef = useRef<THREE.SpotLight>(null);
   const colorScratch = useMemo(() => new THREE.Color(), []);
   const smoothed = useSmoothedLighting();
-  const preview = useTransformPreview();
+  const { applyBasePose } = useFixtureBase(instance);
 
   const definition = BUILTIN_FIXTURES.find((d) => d.typeId === instance.definitionId);
   const defaults = definition?.defaultProps;
@@ -32,12 +32,7 @@ export function ParFixture({ instance, selected, hovered, onSelect, onHover }: P
 
   useFrame(() => {
     const g = groupRef.current;
-    if (!g) return;
-    const live = preview.current.fixtureId === instance.id;
-    if (live && preview.current.position) g.position.copy(preview.current.position);
-    else g.position.set(...instance.position);
-    if (live && preview.current.rotation) g.rotation.copy(preview.current.rotation);
-    else g.rotation.set(...instance.rotation);
+    if (g) applyBasePose(g);
 
     const render = mapLightingFrame(instance, definition, smoothed.current, colorScratch);
     const accent = downbeatAccent(

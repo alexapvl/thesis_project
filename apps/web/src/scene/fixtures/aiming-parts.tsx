@@ -28,19 +28,20 @@ type SelectionBoxesProps = {
   selected: boolean;
   hovered: boolean;
   size: [number, number, number];
+  offset?: [number, number, number];
 };
 
-export function SelectionBoxes({ selected, hovered, size }: SelectionBoxesProps) {
+export function SelectionBoxes({ selected, hovered, size, offset = [0, 0, 0] }: SelectionBoxesProps) {
   return (
     <>
       {hovered && !selected && (
-        <mesh raycast={() => null}>
+        <mesh raycast={() => null} position={offset}>
           <boxGeometry args={size} />
           <meshBasicMaterial color={HOVER_TINT} wireframe />
         </mesh>
       )}
       {selected && (
-        <mesh raycast={() => null}>
+        <mesh raycast={() => null} position={offset}>
           <boxGeometry args={size} />
           <meshBasicMaterial color={SELECTED_TINT} wireframe />
         </mesh>

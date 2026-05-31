@@ -17,6 +17,8 @@ export function emptyScene(id: string, name = 'Untitled scene'): SceneDocument {
     name,
     fixtures: [],
     groups: [],
+    structures: [],
     selectedFixtureId: null,
+    selectedStructureId: null,
   };
 }

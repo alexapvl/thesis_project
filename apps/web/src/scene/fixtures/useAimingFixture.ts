@@ -14,6 +14,7 @@ import {
 import { useTransformPreview } from '@/scene/editor/TransformPreviewProvider';
 import { useStore } from '@/store';
 import { fixturePointerHandlers } from './fixture-interaction';
+import { useFixtureBase } from './useFixtureBase';
 import { createHazeConeTexture, createPoolTexture } from './haze-textures';
 import type { AimingFixtureVisual } from './aiming-visual';
 
@@ -63,6 +64,7 @@ export function useAimingFixture(
   const fixtureSeed = useMemo(() => seedFrom(instance.id), [instance.id]);
   const smoothed = useSmoothedLighting();
   const preview = useTransformPreview();
+  const { applyBasePose } = useFixtureBase(instance);
   const scene = useThree((s) => s.scene);
   const poolTexture = useMemo(() => createPoolTexture(), []);
   const hazeConeTexture = useMemo(() => createHazeConeTexture(visual.softHaze), [visual.softHaze]);
@@ -108,14 +110,9 @@ export function useAimingFixture(
 
   useFrame((_, delta) => {
     const g = groupRef.current;
-    const live = preview.current.fixtureId === instance.id;
-    if (g) {
-      if (live && preview.current.position) g.position.copy(preview.current.position);
-      else g.position.set(...instance.position);
-      if (live && preview.current.rotation) g.rotation.copy(preview.current.rotation);
-      else g.rotation.set(...instance.rotation);
-    }
+    if (g) applyBasePose(g);
 
+    const live = preview.current.fixtureId === instance.id;
     if (live && preview.current.target) {
       aimScratch.copy(preview.current.target);
     } else {

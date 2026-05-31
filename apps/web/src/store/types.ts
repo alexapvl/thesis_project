@@ -57,6 +57,7 @@ export type LightingRuntimeState = {
 export type EditorState = {
   placementMode: 'idle' | 'click-to-place';
   pendingFixtureTypeId: string | null;
+  pendingStructureTypeId: string | null;
   gridSnap: boolean;
   gridSize: number;
 };

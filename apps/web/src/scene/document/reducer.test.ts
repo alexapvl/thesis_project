@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { emptyScene } from '@stl/fixtures';
+import { emptyScene, TOWER_STRUCTURE } from '@stl/fixtures';
 import { applyAction, isHistoricAction } from './reducer';
 import { instantiateFixture } from '../fixtures/instantiate';
+import { instantiateStructure } from '../structures/instantiateStructure';
 import { SPOTLIGHT_FIXTURE } from '@stl/fixtures';
+import { socketsForStructure } from '../structures/sockets';
 
 function seed() {
   const doc = emptyScene('s1');
@@ -61,5 +63,66 @@ describe('scene reducer', () => {
     expect(
       isHistoricAction({ type: 'fixture.update', id: 'x', patch: {} }),
     ).toBe(true);
+  });
+
+  it('adds a structure and selects it', () => {
+    const doc = emptyScene('s1');
+    const tower = instantiateStructure(TOWER_STRUCTURE, 'st1', [0, 0, 0]);
+    const next = applyAction(doc, { type: 'structure.add', structure: tower });
+    expect(next.structures).toHaveLength(1);
+    expect(next.selectedStructureId).toBe('st1');
+    expect(next.selectedFixtureId).toBeNull();
+  });
+
+  it('mounts a fixture to a structure socket', () => {
+    let doc = emptyScene('s1');
+    const tower = instantiateStructure(TOWER_STRUCTURE, 'st1', [0, 0, 0]);
+    doc = applyAction(doc, { type: 'structure.add', structure: tower });
+    const f1 = instantiateFixture(SPOTLIGHT_FIXTURE, 'f1', [1, 4, 1]);
+    doc = applyAction(doc, { type: 'fixture.add', fixture: f1 });
+    const socketId = socketsForStructure(tower)[0]!.id;
+    const next = applyAction(doc, {
+      type: 'fixture.mount',
+      id: 'f1',
+      structureId: 'st1',
+      socketId,
+    });
+    expect(next.fixtures[0]?.mount).toEqual({ structureId: 'st1', socketId });
+  });
+
+  it('unmounts a fixture and clears mount', () => {
+    let doc = emptyScene('s1');
+    const tower = instantiateStructure(TOWER_STRUCTURE, 'st1', [0, 0, 0]);
+    doc = applyAction(doc, { type: 'structure.add', structure: tower });
+    const f1 = instantiateFixture(SPOTLIGHT_FIXTURE, 'f1', [1, 4, 1]);
+    doc = applyAction(doc, { type: 'fixture.add', fixture: f1 });
+    const socketId = socketsForStructure(tower)[0]!.id;
+    doc = applyAction(doc, {
+      type: 'fixture.mount',
+      id: 'f1',
+      structureId: 'st1',
+      socketId,
+    });
+    const next = applyAction(doc, { type: 'fixture.unmount', id: 'f1' });
+    expect(next.fixtures[0]?.mount).toBeNull();
+    expect(next.fixtures[0]?.position).toBeDefined();
+  });
+
+  it('removing a structure unmounts fixtures on it', () => {
+    let doc = emptyScene('s1');
+    const tower = instantiateStructure(TOWER_STRUCTURE, 'st1', [0, 0, 0]);
+    doc = applyAction(doc, { type: 'structure.add', structure: tower });
+    const f1 = instantiateFixture(SPOTLIGHT_FIXTURE, 'f1', [1, 4, 1]);
+    doc = applyAction(doc, { type: 'fixture.add', fixture: f1 });
+    const socketId = socketsForStructure(tower)[0]!.id;
+    doc = applyAction(doc, {
+      type: 'fixture.mount',
+      id: 'f1',
+      structureId: 'st1',
+      socketId,
+    });
+    const next = applyAction(doc, { type: 'structure.remove', id: 'st1' });
+    expect(next.structures).toEqual([]);
+    expect(next.fixtures[0]?.mount).toBeNull();
   });
 });
