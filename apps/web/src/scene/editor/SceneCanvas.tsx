@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Grid, OrbitControls } from '@react-three/drei';
+import { Environment, Grid, OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import { useStore } from '@/store';
 import { FixtureRenderer } from '@/scene/fixtures/FixtureRenderer';
 import { SmoothedLightingProvider } from '@/scene/mappers/SmoothedLightingProvider';
@@ -30,16 +31,28 @@ export function SceneCanvas() {
   return (
     <Canvas
       camera={{ position: [6, 6, 8], fov: 50 }}
+      gl={{ antialias: true }}
+      onCreated={({ gl }) => {
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.05;
+      }}
       onPointerMissed={() => {
         if (!placement) dispatch({ type: 'selection.set', id: null });
       }}
     >
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[10, 10, 5]} intensity={0.6} />
+      <color attach="background" args={['#0b1220']} />
+      <Environment preset="warehouse" background={false} environmentIntensity={0.35} />
+      <ambientLight intensity={0.18} />
+      <directionalLight position={[10, 12, 6]} intensity={0.35} />
       <Grid args={[20, 20]} cellColor="#334155" sectionColor="#475569" />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]}>
         <planeGeometry args={[20, 20]} />
-        <meshStandardMaterial color="#0b1220" />
+        <meshStandardMaterial
+          color="#111827"
+          metalness={0.12}
+          roughness={0.72}
+          envMapIntensity={0.45}
+        />
       </mesh>
 
       <TransformPreviewProvider>

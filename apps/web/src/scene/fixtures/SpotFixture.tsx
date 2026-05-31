@@ -16,14 +16,10 @@ type Props = {
 
 const SPOT_INTENSITY_GAIN = 60;
 const LENS_EMISSIVE_GAIN = 1.5;
-// Visible "haze cone" parameters. The cone is a stand-in for the
-// volumetric look you'd get from a real fog machine + spotlight; we are
-// not raymarching anything. Opacity at full brightness is tuned to read
-// clearly without dominating the scene when many fixtures overlap.
-const CONE_OPACITY_GAIN = 0.2;
-// Cap the cone length at the spotLight's effective throw so we don't
-// draw a 200-unit haze when the user parks a target far off-screen.
-const CONE_MAX_LENGTH = 30;
+const POOL_OPACITY_GAIN = 0.35;
+const HAZE_OPACITY_GAIN = 0.09;
+const HAZE_MAX_LENGTH = 30;
+const FLOOR_Y = 0.02;
 
 // Beat-driven movement. Skip-BART only predicts (hue, value), so we
 // displace each fixture's aim point on every beat from BeatNet within a
@@ -31,45 +27,85 @@ const CONE_MAX_LENGTH = 30;
 // fixture so spotlights sweep independently; smoothed over MOVE_TAU_SECONDS
 // so the path reads as a curve rather than a teleport.
 const MOVE_RADIUS = 3.5;
-// Tighter tau so the head reaches close to the new target before the
-// next beat overrides it — at 120 BPM (500 ms / beat) the head travels
-// ~99 % of the way, at 160 BPM (375 ms) ~98 %. Keeps the geometry
-// reading as decisive sweeps even on busy passages.
 const MOVE_TAU_SECONDS = 0.10;
-// On every new beat target, reject draws that land too close to the
-// current offset. Pure uniform sampling otherwise produces ~30 % of
-// "movements" that are tiny wobbles indistinguishable from noise.
 const MOVE_MIN_DISTANCE = 1.5;
-// Downbeats (the "1" of a bar) get an extra-wide throw to make the bar
-// boundary visible in the lighting. Picked to land near the rig perimeter
-// without overshooting MOVE_RADIUS too dramatically.
 const DOWNBEAT_RADIUS_BOOST = 1.6;
 
-// Material colors for the moving-head body. Selected variants are warmer
-// so the user can pick out which fixture is active without relying on
-// the wireframe overlay.
 const BASE_COLOR = '#475569';
 const ARM_COLOR = '#334155';
 const HEAD_COLOR = '#1e293b';
 const SELECTED_TINT = '#fbbf24';
+
+function createPoolTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.45, 'rgba(255,255,255,0.35)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/** Soft axial + radial falloff so the beam reads as haze, not a solid cone. */
+function createHazeConeTexture(): THREE.CanvasTexture {
+  const width = 64;
+  const height = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const axial = ctx.createLinearGradient(0, 0, 0, height);
+    axial.addColorStop(0, 'rgba(255,255,255,0.85)');
+    axial.addColorStop(0.12, 'rgba(255,255,255,0.45)');
+    axial.addColorStop(0.55, 'rgba(255,255,255,0.12)');
+    axial.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = axial;
+    ctx.fillRect(0, 0, width, height);
+
+    const radial = ctx.createRadialGradient(width / 2, 0, 0, width / 2, height / 2, width / 2);
+    radial.addColorStop(0, 'rgba(255,255,255,1)');
+    radial.addColorStop(0.55, 'rgba(255,255,255,0.55)');
+    radial.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, width, height);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
 
 export function SpotFixture({ instance, selected, onSelect }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
   const lensMatRef = useRef<THREE.MeshStandardMaterial>(null);
-  const coneRef = useRef<THREE.Mesh>(null);
-  const coneMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const hazeConeRef = useRef<THREE.Mesh>(null);
   const targetObj = useMemo(() => new THREE.Object3D(), []);
+  const poolObj = useMemo(() => {
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const obj = new THREE.Mesh(new THREE.CircleGeometry(1, 32), material);
+    obj.rotation.x = -Math.PI / 2;
+    obj.renderOrder = 1;
+    return obj;
+  }, []);
   const colorScratch = useMemo(() => new THREE.Color(), []);
-  // Reused per-frame to avoid allocating Vector3s for the aim target
-  // and head world position.
   const aimScratch = useMemo(() => new THREE.Vector3(), []);
   const headWorldScratch = useMemo(() => new THREE.Vector3(), []);
-  // Per-fixture beat-driven offset state. `current` glides toward `target`
-  // each frame; `target` is rerolled on every new beat. `lastBeatMs`
-  // remembers the most recent beat we've reacted to so we don't reroll
-  // every frame.
   const moveState = useRef({
     currentX: 0,
     currentZ: 0,
@@ -80,42 +116,39 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
   const smoothed = useSmoothedLighting();
   const preview = useTransformPreview();
   const scene = useThree((s) => s.scene);
-
-  // The spotLight's target Object3D MUST be a sibling of the scene root
-  // (or any unrotated ancestor), not a child of the fixture group.
-  // Three.js reads `target.matrixWorld` to compute the beam direction;
-  // when target is nested in a rotated parent, its local position gets
-  // transformed by that rotation, so the beam shoots somewhere other
-  // than the world point we intended. This is the "visible cone vs lit
-  // floor patch diverge under rotation" bug.
-  useEffect(() => {
-    scene.add(targetObj);
-    return () => {
-      scene.remove(targetObj);
-    };
-  }, [scene, targetObj]);
+  const poolTexture = useMemo(() => createPoolTexture(), []);
+  const hazeConeTexture = useMemo(() => createHazeConeTexture(), []);
 
   const definition = BUILTIN_FIXTURES.find((d) => d.typeId === instance.definitionId);
   const angle = (instance.overrides.angleRad as number) ?? Math.PI / 6;
   const distance = (instance.overrides.distance as number) ?? 30;
   const penumbra = (instance.overrides.penumbra as number) ?? 0.2;
 
-  // Unit-length cone built with radius = tan(angle) so uniform scaling
-  // by the head→target distance preserves the half-angle. Modelled
-  // along local -Z; the head group is flipped 180° in useFrame after
-  // lookAt so the cone ends up pointing at the target. Open base
-  // (`openEnded=true`) keeps the back from showing as a flat disc when
-  // viewed near-axis.
-  const coneGeom = useMemo(() => {
+  const hazeConeGeom = useMemo(() => {
     const g = new THREE.ConeGeometry(Math.tan(angle), 1, 32, 1, true);
-    g.rotateX(Math.PI / 2); // align cone axis along Z (default is Y)
-    g.translate(0, 0, -0.5); // tip at z=0, base at z=-1
+    g.rotateX(Math.PI / 2);
+    g.translate(0, 0, -0.5);
     return g;
   }, [angle]);
 
+  useEffect(() => {
+    const poolMaterial = poolObj.material as THREE.MeshBasicMaterial;
+    poolMaterial.map = poolTexture;
+    scene.add(targetObj);
+    scene.add(poolObj);
+    return () => {
+      scene.remove(targetObj);
+      scene.remove(poolObj);
+      poolTexture.dispose();
+      poolObj.geometry.dispose();
+      poolObj.material.dispose();
+    };
+  }, [scene, targetObj, poolObj, poolTexture]);
+
+  useEffect(() => () => hazeConeGeom.dispose(), [hazeConeGeom]);
+  useEffect(() => () => hazeConeTexture.dispose(), [hazeConeTexture]);
+
   useFrame((_, delta) => {
-    // Pose: respect the in-flight transform preview if this fixture is
-    // the one being dragged.
     const g = groupRef.current;
     const live = preview.current.fixtureId === instance.id;
     if (g) {
@@ -125,25 +158,14 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       else g.rotation.set(...instance.rotation);
     }
 
-    // Aim point — also preview-aware. Used both for the spotLight target
-    // (Three.js SpotLight needs a target Object3D) and for the head's
-    // visual lookAt.
     if (live && preview.current.target) {
       aimScratch.copy(preview.current.target);
     } else {
       aimScratch.set(instance.target[0], instance.target[1], instance.target[2]);
-      // Beat-driven sweep, skipped while the user is dragging the
-      // target gizmo so we don't fight their input.
       const lighting = useStore.getState().lighting;
       const beatMs = lighting.lastBeatTimeMs;
       const m = moveState.current;
       if (beatMs != null && beatMs !== m.lastBeatMs) {
-        // New beat: reroll the offset target. Downbeats get a wider
-        // radius so the bar boundary reads as a bigger sweep than the
-        // intermediate beats. Reject draws that land within
-        // MOVE_MIN_DISTANCE of the current offset — without this we'd
-        // see a lot of "moves" that are visually indistinguishable from
-        // standing still, and the rig looks sluggish even on busy music.
         const isDownbeat =
           lighting.lastDownbeatTimeMs != null && lighting.lastDownbeatTimeMs === beatMs;
         const radius = isDownbeat ? MOVE_RADIUS * DOWNBEAT_RADIUS_BOOST : MOVE_RADIUS;
@@ -170,16 +192,10 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
 
     const head = headRef.current;
     if (head) {
-      // Object3D.lookAt aligns local -Z with the target (aim point is
-      // already in world space). Our head model has its lens/cone
-      // built along -Z, but the visible front face needs to read as
-      // "pointing at the target" — flipping 180° around Y after
-      // lookAt achieves that without remodeling.
       head.lookAt(aimScratch);
       head.rotateY(Math.PI);
     }
 
-    // Lighting state → spotLight + lens material.
     const render = mapLightingFrame(instance, definition, smoothed.current, colorScratch);
     if (lightRef.current) {
       lightRef.current.color.copy(render.color);
@@ -191,27 +207,35 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
       lensMatRef.current.emissiveIntensity = render.intensity * LENS_EMISSIVE_GAIN;
     }
 
-    // Visible cone: scale to head→target distance (capped) so the cone
-    // tip is at the lens and the base intersects the target. Hidden
-    // entirely when the fixture is dark — invisible cones cluttering up
-    // the depth buffer aren't useful and additive blending of "off"
-    // fixtures still adds zero color but costs fragments.
-    const cone = coneRef.current;
-    if (cone) {
+    const pool = poolObj;
+    if (render.intensity <= 0) {
+      pool.visible = false;
+    } else {
+      pool.visible = true;
+      pool.position.set(aimScratch.x, FLOOR_Y, aimScratch.z);
+      head?.getWorldPosition(headWorldScratch);
+      const dx = aimScratch.x - headWorldScratch.x;
+      const dz = aimScratch.z - headWorldScratch.z;
+      const horizDist = Math.sqrt(dx * dx + dz * dz);
+      const poolRadius = Math.max(0.35, Math.min(horizDist * Math.tan(angle), distance * Math.tan(angle)));
+      pool.scale.set(poolRadius, poolRadius, 1);
+      const poolMaterial = pool.material as THREE.MeshBasicMaterial;
+      poolMaterial.color.copy(render.color);
+      poolMaterial.opacity = Math.min(1, render.intensity * POOL_OPACITY_GAIN);
+    }
+
+    const hazeCone = hazeConeRef.current;
+    if (hazeCone) {
       if (render.intensity <= 0) {
-        cone.visible = false;
+        hazeCone.visible = false;
       } else {
-        cone.visible = true;
-        // World-space distance from head pivot to aim point. The head's
-        // world matrix is up-to-date at this point because lookAt() was
-        // called above (we're past the parent group's matrix update).
+        hazeCone.visible = true;
         head?.getWorldPosition(headWorldScratch);
-        const length = Math.min(headWorldScratch.distanceTo(aimScratch), CONE_MAX_LENGTH);
-        cone.scale.set(length, length, length);
-        if (coneMatRef.current) {
-          coneMatRef.current.color.copy(render.color);
-          coneMatRef.current.opacity = Math.min(1, render.intensity * CONE_OPACITY_GAIN);
-        }
+        const length = Math.min(headWorldScratch.distanceTo(aimScratch), HAZE_MAX_LENGTH);
+        hazeCone.scale.set(length, length, length);
+        const hazeMaterial = hazeCone.material as THREE.MeshBasicMaterial;
+        hazeMaterial.color.copy(render.color);
+        hazeMaterial.opacity = Math.min(0.14, render.intensity * HAZE_OPACITY_GAIN);
       }
     }
   });
@@ -226,19 +250,16 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         onSelect(instance.id);
       }}
     >
-      {/* Note: targetObj is parented to the scene root via useEffect
-          above — do NOT mount it here, or the rotation of this group
-          would offset where the beam actually shoots. */}
       <spotLight
         ref={lightRef}
         angle={angle}
         penumbra={penumbra}
         distance={distance}
+        decay={2}
         target={targetObj}
         castShadow={false}
       />
 
-      {/* Base plate */}
       <mesh position={[0, -0.2, 0]}>
         <cylinderGeometry args={[0.22, 0.28, 0.12, 20]} />
         <meshStandardMaterial
@@ -248,7 +269,6 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         />
       </mesh>
 
-      {/* Yoke arms — two thin uprights flanking the head */}
       <mesh position={[-0.2, 0.0, 0]}>
         <boxGeometry args={[0.05, 0.36, 0.08]} />
         <meshStandardMaterial color={selected ? SELECTED_TINT : ARM_COLOR} metalness={0.3} />
@@ -258,30 +278,18 @@ export function SpotFixture({ instance, selected, onSelect }: Props) {
         <meshStandardMaterial color={selected ? SELECTED_TINT : ARM_COLOR} metalness={0.3} />
       </mesh>
 
-      {/* Head — pivots between the yoke arms to point at the target.
-          Modelled with lens/cone along local -Z; the useFrame block
-          above runs lookAt() then rotates 180° around Y so the front
-          face ends up aimed at the target. */}
       <group ref={headRef} position={[0, 0.05, 0]}>
-        {/* Body cylinder, axis along local Z (rotate cylinder Y→Z) */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.16, 0.16, 0.42, 20]} />
           <meshStandardMaterial color={HEAD_COLOR} metalness={0.5} roughness={0.4} />
         </mesh>
-        {/* Lens cap at the front (-Z) — slightly larger so it reads as a
-            bezel, glows with the current light color via lensMatRef. */}
         <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.17, 0.17, 0.04, 20]} />
           <meshStandardMaterial ref={lensMatRef} color={HEAD_COLOR} />
         </mesh>
-        {/* Visible "haze" cone. Tip sits at the lens face; uniform
-            per-frame scaling stretches it out to the target. Additive
-            blending so overlapping cones brighten naturally; depthWrite
-            off so the cone doesn't occlude solid geometry behind it. */}
-        <mesh ref={coneRef} geometry={coneGeom} position={[0, 0, -0.22]} renderOrder={1}>
+        <mesh ref={hazeConeRef} geometry={hazeConeGeom} position={[0, 0, -0.22]} renderOrder={1}>
           <meshBasicMaterial
-            ref={coneMatRef}
-            color={HEAD_COLOR}
+            map={hazeConeTexture}
             transparent
             opacity={0}
             depthWrite={false}
