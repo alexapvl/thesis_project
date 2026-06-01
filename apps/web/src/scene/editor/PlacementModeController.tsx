@@ -11,7 +11,16 @@ import { instantiateStructure } from '@/scene/structures/instantiateStructure';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
 import { raycastFloor } from './raycastFloor';
+import { composeRotation } from './composeRotation';
 import { resolveFixtureDrop } from './resolveFixtureDrop';
+
+function isEditableTarget(t: EventTarget | null): boolean {
+  return (
+    t instanceof HTMLInputElement ||
+    t instanceof HTMLTextAreaElement ||
+    (t instanceof HTMLElement && t.isContentEditable)
+  );
+}
 
 export function PlacementModeController() {
   const gl = useThree((s) => s.gl);
@@ -25,6 +34,7 @@ export function PlacementModeController() {
   const newFixtureId = useStore((s) => s.newFixtureId);
   const setPlacement = useStore((s) => s.editorSetPlacement);
   const setStructurePlacement = useStore((s) => s.editorSetStructurePlacement);
+  const rotatePending = useStore((s) => s.editorRotatePending);
   const debugLog = useStore((s) => s.debugLog);
 
   const pendingTypeId = pendingStructureTypeId ?? pendingFixtureTypeId;
@@ -49,8 +59,16 @@ export function PlacementModeController() {
 
     const dom = gl.domElement;
 
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'r') return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+      rotatePending(e.shiftKey ? 'tilt' : 'yaw');
+    };
+
     const onClick = (ev: MouseEvent) => {
       if (ev.button !== 0) return;
+      const pendingRotation = useStore.getState().editor.pendingRotation;
 
       if (structureDef) {
         const r = raycastFloor(dom, camera, ev.clientX, ev.clientY);
@@ -60,7 +78,7 @@ export function PlacementModeController() {
         }
         let pos: Vec3 = [r.point[0], 0, r.point[2]];
         if (gridSnap) pos = snapVec3(pos, gridSize);
-        const inst = instantiateStructure(structureDef, newFixtureId(), pos);
+        const inst = instantiateStructure(structureDef, newFixtureId(), pos, pendingRotation);
         dispatch({ type: 'structure.add', structure: inst });
         debugLog('info', `placed ${structureDef.label} at ${pos.map((n) => n.toFixed(2)).join(', ')}`);
         setStructurePlacement(null);
@@ -86,7 +104,8 @@ export function PlacementModeController() {
         if (drop.kind === 'mount') {
           let pos = drop.position;
           if (gridSnap) pos = snapVec3(pos, gridSize);
-          const inst = instantiateFixture(fixtureDef, id, pos, { rotation: drop.rotation });
+          const rotation = composeRotation(drop.rotation, pendingRotation);
+          const inst = instantiateFixture(fixtureDef, id, pos, { rotation });
           dispatch({ type: 'fixture.add', fixture: inst });
           dispatch({
             type: 'fixture.mount',
@@ -98,7 +117,10 @@ export function PlacementModeController() {
         } else {
           let pos = drop.position;
           if (gridSnap) pos = snapVec3(pos, gridSize);
-          const inst = instantiateFixture(fixtureDef, id, pos, { onGround: true });
+          const inst = instantiateFixture(fixtureDef, id, pos, {
+            onGround: true,
+            rotation: pendingRotation,
+          });
           dispatch({ type: 'fixture.add', fixture: inst });
           debugLog('info', `placed ${fixtureDef.label} on ground`);
         }
@@ -112,9 +134,11 @@ export function PlacementModeController() {
       setStructurePlacement(null);
     };
 
+    window.addEventListener('keydown', onKey);
     dom.addEventListener('click', onClick);
     dom.addEventListener('contextmenu', onContext);
     return () => {
+      window.removeEventListener('keydown', onKey);
       dom.removeEventListener('click', onClick);
       dom.removeEventListener('contextmenu', onContext);
     };
@@ -131,6 +155,7 @@ export function PlacementModeController() {
     newFixtureId,
     setPlacement,
     setStructurePlacement,
+    rotatePending,
     debugLog,
   ]);
 

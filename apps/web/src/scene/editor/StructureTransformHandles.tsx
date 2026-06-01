@@ -49,6 +49,10 @@ export function StructureTransformHandles({ mode, setOrbitEnabled }: Props) {
           dragging.current = true;
           setOrbitEnabled(false);
         }}
+        onObjectChange={() => {
+          if (!dragging.current || mode !== 'translate') return;
+          proxy.position.y = 0;
+        }}
         onMouseUp={() => {
           dragging.current = false;
           setOrbitEnabled(true);
@@ -60,8 +64,9 @@ export function StructureTransformHandles({ mode, setOrbitEnabled }: Props) {
               debugLog('warn', 'structure move rejected: out of range');
               return;
             }
-            let pos: Vec3 = [proxy.position.x, proxy.position.y, proxy.position.z];
+            let pos: Vec3 = [proxy.position.x, 0, proxy.position.z];
             if (gridSnap) pos = snapVec3(pos, gridSize);
+            pos[1] = 0;
             dispatch({ type: 'structure.update', id: selected.id, patch: { position: pos } });
           } else {
             const rot: Vec3 = [proxy.rotation.x, proxy.rotation.y, proxy.rotation.z];

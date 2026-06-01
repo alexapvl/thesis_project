@@ -26,12 +26,13 @@ export function SceneCanvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (placement) return;
       if (e.key === 'g') setTransformMode('translate');
       else if (e.key === 'r') setTransformMode('rotate');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [placement]);
 
   return (
     <Canvas

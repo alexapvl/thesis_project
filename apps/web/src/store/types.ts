@@ -58,6 +58,8 @@ export type EditorState = {
   placementMode: 'idle' | 'click-to-place';
   pendingFixtureTypeId: string | null;
   pendingStructureTypeId: string | null;
+  /** Pre-placement euler rotation (r = yaw Y, Shift+r = tilt X). */
+  pendingRotation: [number, number, number];
   gridSnap: boolean;
   gridSize: number;
 };

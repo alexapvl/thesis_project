@@ -24,6 +24,7 @@ import { GoalpostStructure } from '@/scene/structures/GoalpostStructure';
 import { TowerStructure } from '@/scene/structures/TowerStructure';
 import { BasePlateStructure } from '@/scene/structures/BasePlateStructure';
 import { instantiateStructure } from '@/scene/structures/instantiateStructure';
+import { composeRotation } from './composeRotation';
 import { resolveFixtureDrop } from './resolveFixtureDrop';
 import { raycastFloor } from './raycastFloor';
 
@@ -156,10 +157,10 @@ function KindGhost({ kind }: { kind: FixtureKind }) {
   }
 }
 
-function StructureGhost({ kind, pos }: { kind: StructureKind; pos: Vec3 }) {
+function StructureGhost({ kind }: { kind: StructureKind }) {
   const sdef = BUILTIN_STRUCTURES.find((d) => d.kind === kind);
   if (!sdef) return null;
-  const ghostInst = instantiateStructure(sdef, 'ghost', pos);
+  const ghostInst = instantiateStructure(sdef, 'ghost', [0, 0, 0]);
   const props = {
     instance: ghostInst,
     selected: false,
@@ -195,6 +196,7 @@ export function PlacementGhost() {
   const structures = useStore((s) => s.scene.doc.structures);
   const gridSnap = useStore((s) => s.editor.gridSnap);
   const gridSize = useStore((s) => s.editor.gridSize);
+  const pendingRotation = useStore((s) => s.editor.pendingRotation);
 
   const [preview, setPreview] = useState<PreviewState>(null);
   const overRef = useRef(false);
@@ -288,10 +290,16 @@ export function PlacementGhost() {
   if (!preview) return null;
 
   if (preview.kind === 'structure') {
-    return <StructureGhost kind={preview.structureKind} pos={preview.pos} />;
+    return (
+      <group position={preview.pos} rotation={pendingRotation}>
+        <StructureGhost kind={preview.structureKind} />
+      </group>
+    );
   }
 
   const { pos, fixtureKind, aims, onGround } = preview;
+  const baseRot = preview.rotation ?? [0, 0, 0];
+  const rot = composeRotation(baseRot, pendingRotation);
   const target = aims
     ? onGround
       ? new THREE.Vector3(pos[0] + 4, pos[1] + 2, pos[2])
@@ -301,7 +309,7 @@ export function PlacementGhost() {
     fixtureKind === 'spot' || fixtureKind === 'wash' || fixtureKind === 'beam';
 
   return (
-    <group position={pos} rotation={preview.rotation ?? [0, 0, 0]}>
+    <group position={pos} rotation={rot}>
       {aims && target && isKnownAiming ? (
         <AimingGhost target={target} pos={pos} kind={fixtureKind} />
       ) : aims && target ? (

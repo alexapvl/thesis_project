@@ -99,7 +99,7 @@ export function socketsForStructure(structure: StructureInstance): Socket[] {
     }
     case 'beam': {
       const len = dim(d, 'length', 4);
-      return beamSocketsAlongZ(len, [0, 0.19, 0]);
+      return beamSocketsAlongZ(len, [0, 0, 0]);
     }
     case 'goalpost': {
       const span = dim(d, 'span', 4);

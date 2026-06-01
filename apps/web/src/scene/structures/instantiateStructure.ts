@@ -8,6 +8,7 @@ export function instantiateStructure(
   def: StructureDefinition,
   id: string,
   position: Vec3,
+  rotation: Vec3 = [0, 0, 0],
 ): StructureInstance {
   counter += 1;
   return {
@@ -16,7 +17,7 @@ export function instantiateStructure(
     name: `${def.label} ${counter}`,
     kind: def.kind,
     position,
-    rotation: [0, 0, 0],
+    rotation,
     dims: { ...def.defaultDims },
   };
 }

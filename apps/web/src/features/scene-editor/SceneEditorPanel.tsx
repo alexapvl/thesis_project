@@ -159,7 +159,8 @@ export function SceneEditorPanel() {
       <details className="editor-shortcuts">
         <summary>shortcuts</summary>
         <ul>
-          <li><kbd>g</kbd> translate · <kbd>r</kbd> rotate</li>
+          <li><kbd>g</kbd> translate · <kbd>r</kbd> rotate (selected)</li>
+          <li><kbd>r</kbd> yaw · <kbd>⇧r</kbd> tilt (while placing)</li>
           <li><kbd>Esc</kbd> cancel placement / selection</li>
           <li><kbd>Del</kbd> delete · <kbd>⌘ D</kbd> duplicate</li>
           <li><kbd>u</kbd> unmount selected fixture</li>

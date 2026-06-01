@@ -1,5 +1,5 @@
 import type { StructureInstance } from '@stl/fixtures';
-import { TrussBasePlate, TrussCapPlate, TrussSegment } from './trussGeometry';
+import { TrussBasePlate, TrussSegment } from './trussGeometry';
 import type { StructureInteractionProps } from './structure-interaction';
 import { structurePointerHandlers } from './structure-interaction';
 import { SelectionBoxes } from '@/scene/fixtures/aiming-parts';
@@ -30,12 +30,10 @@ export function GoalpostStructure({
       <group position={[-half, 0, 0]}>
         <TrussBasePlate width={0.6} ghost={ghost} wireframe={wireframe} />
         <TrussSegment length={height} axis="y" ghost={ghost} wireframe={wireframe} />
-        <TrussCapPlate width={0.6} height={height} ghost={ghost} wireframe={wireframe} />
       </group>
       <group position={[half, 0, 0]}>
         <TrussBasePlate width={0.6} ghost={ghost} wireframe={wireframe} />
         <TrussSegment length={height} axis="y" ghost={ghost} wireframe={wireframe} />
-        <TrussCapPlate width={0.6} height={height} ghost={ghost} wireframe={wireframe} />
       </group>
       <group position={[-half, height, 0]}>
         <TrussSegment length={span} axis="x" ghost={ghost} wireframe={wireframe} />

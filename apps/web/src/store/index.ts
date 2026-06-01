@@ -6,6 +6,7 @@ import {
   isHistoricAction,
   type SceneAction,
 } from '@/scene/document/reducer';
+import { stepPlacementRotation } from '@/scene/editor/placementRotation';
 import type {
   AudioState,
   ConnectionStatus,
@@ -71,6 +72,7 @@ type Actions = {
 
   editorSetPlacement: (typeId: string | null) => void;
   editorSetStructurePlacement: (typeId: string | null) => void;
+  editorRotatePending: (axis: 'yaw' | 'tilt') => void;
   editorSetGridSnap: (enabled: boolean) => void;
   editorSetGridSize: (size: number) => void;
 
@@ -123,6 +125,7 @@ export const useStore = create<State & Actions>()(
       placementMode: 'idle',
       pendingFixtureTypeId: null,
       pendingStructureTypeId: null,
+      pendingRotation: [0, 0, 0],
       gridSnap: true,
       gridSize: 0.5,
     },
@@ -218,6 +221,7 @@ export const useStore = create<State & Actions>()(
               pendingFixtureTypeId || pendingStructureTypeId ? 'click-to-place' : 'idle',
             pendingFixtureTypeId,
             pendingStructureTypeId,
+            pendingRotation: [0, 0, 0],
           },
         };
       }),
@@ -233,9 +237,18 @@ export const useStore = create<State & Actions>()(
               pendingFixtureTypeId || pendingStructureTypeId ? 'click-to-place' : 'idle',
             pendingStructureTypeId,
             pendingFixtureTypeId,
+            pendingRotation: [0, 0, 0],
           },
         };
       }),
+
+    editorRotatePending: (axis) =>
+      set((s) => ({
+        editor: {
+          ...s.editor,
+          pendingRotation: stepPlacementRotation(s.editor.pendingRotation, axis),
+        },
+      })),
     editorSetGridSnap: (enabled) =>
       set((s) => ({ editor: { ...s.editor, gridSnap: enabled } })),
     editorSetGridSize: (gridSize) => set((s) => ({ editor: { ...s.editor, gridSize } })),
