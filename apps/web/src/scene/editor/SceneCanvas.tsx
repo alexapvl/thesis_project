@@ -41,6 +41,7 @@ export function SceneCanvas() {
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.05;
+        gl.localClippingEnabled = true;
       }}
       onPointerMissed={() => {
         if (!placement) {

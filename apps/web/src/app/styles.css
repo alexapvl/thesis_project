@@ -307,6 +307,15 @@ kbd {
   gap: 6px;
 }
 
+.stage-preset {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
 .persistence-err {
   color: #fca5a5;
   font-size: 11px;

@@ -27,6 +27,23 @@ type Props = FixtureInteractionProps & { instance: FixtureInstance };
 const PATTERN_COUNT = 3;
 const MOVE_RADIUS = 2.5;
 const MOVE_TAU = 0.12;
+const BEAM_RADIUS = 0.0018;
+/** Clip beam geometry below the stage floor (y = 0). */
+const FLOOR_CLIP_PLANES = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];
+const _beamOrigin = new THREE.Vector3();
+const _beamDir = new THREE.Vector3();
+
+function cappedBeamLength(mesh: THREE.Mesh, maxLength: number): number {
+  mesh.updateWorldMatrix(true, false);
+  _beamOrigin.set(0, 0, 0).applyMatrix4(mesh.matrixWorld);
+  _beamDir.set(0, 0, -1).transformDirection(mesh.matrixWorld);
+  let len = maxLength;
+  if (_beamDir.y < -1e-5) {
+    const t = -_beamOrigin.y / _beamDir.y;
+    if (t > 0) len = Math.min(len, t);
+  }
+  return Math.max(0.02, len);
+}
 
 export function LaserFixture({ instance, selected, hovered, onSelect, onHover }: Props) {
   const groupRef = useRef<THREE.Group>(null);
@@ -57,7 +74,7 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
   const beamLength = readOverrideNumber(instance.overrides, defaults, 'beamLength', 18);
 
   const beamGeoms = useMemo(() => {
-    const g = new THREE.CylinderGeometry(0.008, 0.008, 1, 6);
+    const g = new THREE.CylinderGeometry(BEAM_RADIUS, BEAM_RADIUS, 1, 4);
     g.rotateX(Math.PI / 2);
     g.translate(0, 0, -0.5);
     return g;
@@ -131,7 +148,8 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
           yaw = (i / beamCount) * Math.PI * 2 * (step / 8) + i * 0.2;
         }
         mesh.rotation.set(0, yaw, 0);
-        mesh.scale.set(beamLength, beamLength, beamLength);
+        const len = cappedBeamLength(mesh, beamLength);
+        mesh.scale.set(1, 1, len);
         const mat = mesh.material as THREE.MeshBasicMaterial;
         const render = mapLightingFrame(instance, definition, smoothed.current, colorScratch);
         const c = render.color.clone();
@@ -152,6 +170,7 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
             opacity={0}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
+            clippingPlanes={FLOOR_CLIP_PLANES}
           />
         </mesh>
       )),

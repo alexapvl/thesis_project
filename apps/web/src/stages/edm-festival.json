@@ -1,0 +1,956 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "stage-edm-festival",
+  "name": "EDM Festival (complex)",
+  "fixtures": [
+    {
+      "id": "st-bw-1-matrix-1",
+      "definitionId": "builtin.matrix",
+      "name": "st-bw-1 matrix",
+      "enabled": true,
+      "position": [
+        -6,
+        3.25,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -6,
+        3.25,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-1",
+        "socketId": "tower-zp-6"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-1-bar-2",
+      "definitionId": "builtin.bar",
+      "name": "st-bw-1 bar",
+      "enabled": true,
+      "position": [
+        -6,
+        1.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -6,
+        1.75,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-1",
+        "socketId": "tower-zp-3"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-1-beam-3",
+      "definitionId": "builtin.beam",
+      "name": "st-bw-1 beam",
+      "enabled": true,
+      "position": [
+        -6,
+        4.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -6,
+        2.75,
+        1.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-1",
+        "socketId": "tower-zp-9"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-2-matrix-4",
+      "definitionId": "builtin.matrix",
+      "name": "st-bw-2 matrix",
+      "enabled": true,
+      "position": [
+        -2,
+        3.25,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -2,
+        3.25,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-2",
+        "socketId": "tower-zp-6"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-2-bar-5",
+      "definitionId": "builtin.bar",
+      "name": "st-bw-2 bar",
+      "enabled": true,
+      "position": [
+        -2,
+        1.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -2,
+        1.75,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-2",
+        "socketId": "tower-zp-3"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-2-beam-6",
+      "definitionId": "builtin.beam",
+      "name": "st-bw-2 beam",
+      "enabled": true,
+      "position": [
+        -2,
+        4.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -2,
+        2.75,
+        1.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-2",
+        "socketId": "tower-zp-9"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-3-matrix-7",
+      "definitionId": "builtin.matrix",
+      "name": "st-bw-3 matrix",
+      "enabled": true,
+      "position": [
+        2,
+        3.25,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        2,
+        3.25,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-3",
+        "socketId": "tower-zp-6"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-3-bar-8",
+      "definitionId": "builtin.bar",
+      "name": "st-bw-3 bar",
+      "enabled": true,
+      "position": [
+        2,
+        1.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        2,
+        1.75,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-3",
+        "socketId": "tower-zp-3"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-3-beam-9",
+      "definitionId": "builtin.beam",
+      "name": "st-bw-3 beam",
+      "enabled": true,
+      "position": [
+        2,
+        4.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        2,
+        2.75,
+        1.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-3",
+        "socketId": "tower-zp-9"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-4-matrix-10",
+      "definitionId": "builtin.matrix",
+      "name": "st-bw-4 matrix",
+      "enabled": true,
+      "position": [
+        6,
+        3.25,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        6,
+        3.25,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-4",
+        "socketId": "tower-zp-6"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-4-bar-11",
+      "definitionId": "builtin.bar",
+      "name": "st-bw-4 bar",
+      "enabled": true,
+      "position": [
+        6,
+        1.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        6,
+        1.75,
+        -6.82
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-4",
+        "socketId": "tower-zp-3"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-bw-4-beam-12",
+      "definitionId": "builtin.beam",
+      "name": "st-bw-4 beam",
+      "enabled": true,
+      "position": [
+        6,
+        4.75,
+        -6.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        6,
+        2.75,
+        1.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-bw-4",
+        "socketId": "tower-zp-9"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-spot-13",
+      "definitionId": "builtin.spot",
+      "name": "Arch spot 1",
+      "enabled": true,
+      "position": [
+        -2.75,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        -2.75,
+        -2.15,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-4"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-spot-14",
+      "definitionId": "builtin.spot",
+      "name": "Arch spot 2",
+      "enabled": true,
+      "position": [
+        -1.25,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        -1.25,
+        -2.15,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-7"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-spot-15",
+      "definitionId": "builtin.spot",
+      "name": "Arch spot 3",
+      "enabled": true,
+      "position": [
+        1.25,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        1.25,
+        -2.15,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-12"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-spot-16",
+      "definitionId": "builtin.spot",
+      "name": "Arch spot 4",
+      "enabled": true,
+      "position": [
+        2.75,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        2.75,
+        -2.15,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-15"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-beam-17",
+      "definitionId": "builtin.beam",
+      "name": "Arch beam 1",
+      "enabled": true,
+      "position": [
+        -3.75,
+        6,
+        -5.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -3.75,
+        4,
+        2.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-zp-2"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-beam-18",
+      "definitionId": "builtin.beam",
+      "name": "Arch beam 2",
+      "enabled": true,
+      "position": [
+        -1.75,
+        6,
+        -5.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -1.75,
+        4,
+        2.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-zp-6"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-beam-19",
+      "definitionId": "builtin.beam",
+      "name": "Arch beam 3",
+      "enabled": true,
+      "position": [
+        1.75,
+        6,
+        -5.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        1.75,
+        4,
+        2.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-zp-13"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-beam-20",
+      "definitionId": "builtin.beam",
+      "name": "Arch beam 4",
+      "enabled": true,
+      "position": [
+        3.75,
+        6,
+        -5.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        3.75,
+        4,
+        2.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-zp-17"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-strobe-21",
+      "definitionId": "builtin.strobe",
+      "name": "Arch strobe L",
+      "enabled": true,
+      "position": [
+        -4.75,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        -4.75,
+        5.85,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-0"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-strobe-22",
+      "definitionId": "builtin.strobe",
+      "name": "Arch strobe R",
+      "enabled": true,
+      "position": [
+        4.75,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        4.75,
+        5.85,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-19"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-blinder-23",
+      "definitionId": "builtin.blinder",
+      "name": "Arch blinder L",
+      "enabled": true,
+      "position": [
+        -0.25,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        -0.25,
+        5.85,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-9"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-mainarch-blinder-24",
+      "definitionId": "builtin.blinder",
+      "name": "Arch blinder R",
+      "enabled": true,
+      "position": [
+        0.25,
+        5.85,
+        -6
+      ],
+      "rotation": [
+        -1.5708,
+        0,
+        0
+      ],
+      "target": [
+        0.25,
+        5.85,
+        -6
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-mainarch",
+        "socketId": "gp-top-beam-under-10"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-l-laser-25",
+      "definitionId": "builtin.laser",
+      "name": "Side L laser",
+      "enabled": true,
+      "position": [
+        -8,
+        5.25,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -8,
+        3.25,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-l",
+        "socketId": "tower-zp-10"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-l-beam-26",
+      "definitionId": "builtin.beam",
+      "name": "Side L beam",
+      "enabled": true,
+      "position": [
+        -8,
+        3.75,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -8,
+        1.75,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-l",
+        "socketId": "tower-zp-7"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-l-spot-27",
+      "definitionId": "builtin.spot",
+      "name": "Side L spot",
+      "enabled": true,
+      "position": [
+        -8,
+        2.25,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        -8,
+        0.25,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-l",
+        "socketId": "tower-zp-4"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-r-laser-28",
+      "definitionId": "builtin.laser",
+      "name": "Side R laser",
+      "enabled": true,
+      "position": [
+        8,
+        5.25,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        8,
+        3.25,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-r",
+        "socketId": "tower-zp-10"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-r-beam-29",
+      "definitionId": "builtin.beam",
+      "name": "Side R beam",
+      "enabled": true,
+      "position": [
+        8,
+        3.75,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        8,
+        1.75,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-r",
+        "socketId": "tower-zp-7"
+      },
+      "overrides": {}
+    },
+    {
+      "id": "st-side-r-spot-30",
+      "definitionId": "builtin.spot",
+      "name": "Side R spot",
+      "enabled": true,
+      "position": [
+        8,
+        2.25,
+        -2.82
+      ],
+      "rotation": [
+        -3.1416,
+        0,
+        -3.1416
+      ],
+      "target": [
+        8,
+        0.25,
+        5.18
+      ],
+      "groupId": null,
+      "mount": {
+        "structureId": "st-side-r",
+        "socketId": "tower-zp-4"
+      },
+      "overrides": {}
+    }
+  ],
+  "groups": [],
+  "structures": [
+    {
+      "id": "st-mainarch",
+      "definitionId": "builtin.structure.goalpost",
+      "name": "Main arch",
+      "kind": "goalpost",
+      "position": [
+        0,
+        0,
+        -6
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 6,
+        "span": 10
+      }
+    },
+    {
+      "id": "st-bw-1",
+      "definitionId": "builtin.structure.tower",
+      "name": "Backwall 1",
+      "kind": "tower",
+      "position": [
+        -6,
+        0,
+        -7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 5
+      }
+    },
+    {
+      "id": "st-bw-2",
+      "definitionId": "builtin.structure.tower",
+      "name": "Backwall 2",
+      "kind": "tower",
+      "position": [
+        -2,
+        0,
+        -7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 5
+      }
+    },
+    {
+      "id": "st-bw-3",
+      "definitionId": "builtin.structure.tower",
+      "name": "Backwall 3",
+      "kind": "tower",
+      "position": [
+        2,
+        0,
+        -7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 5
+      }
+    },
+    {
+      "id": "st-bw-4",
+      "definitionId": "builtin.structure.tower",
+      "name": "Backwall 4",
+      "kind": "tower",
+      "position": [
+        6,
+        0,
+        -7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 5
+      }
+    },
+    {
+      "id": "st-side-l",
+      "definitionId": "builtin.structure.tower",
+      "name": "Side tower left",
+      "kind": "tower",
+      "position": [
+        -8,
+        0,
+        -3
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 6
+      }
+    },
+    {
+      "id": "st-side-r",
+      "definitionId": "builtin.structure.tower",
+      "name": "Side tower right",
+      "kind": "tower",
+      "position": [
+        8,
+        0,
+        -3
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "dims": {
+        "height": 6
+      }
+    }
+  ],
+  "selectedFixtureId": null,
+  "selectedStructureId": null
+}

@@ -6,6 +6,7 @@ import { FixtureCatalog } from '@/features/fixture-catalog/FixtureCatalog';
 import { SceneEditorPanel } from '@/features/scene-editor/SceneEditorPanel';
 import { useSceneShortcuts } from '@/features/scene-editor/useSceneShortcuts';
 import { PersistenceControls } from '@/features/persistence/PersistenceControls';
+import { StagePresetPicker } from '@/features/persistence/StagePresetPicker';
 import { useAutosave } from '@/features/persistence/useAutosave';
 import { useHydrate } from '@/features/persistence/useHydrate';
 import { DebugPanel } from '@/components/DebugPanel';
@@ -28,6 +29,7 @@ export function App() {
         <FileUpload />
         <PlaybackControls />
         <MicToggle />
+        <StagePresetPicker />
         <PersistenceControls />
         <StatusBar />
       </header>
