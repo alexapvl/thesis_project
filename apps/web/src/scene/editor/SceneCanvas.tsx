@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Environment, Grid, OrbitControls } from '@react-three/drei';
+import { Environment, Grid } from '@react-three/drei';
+import { SceneOrbitControls } from './SceneOrbitControls';
 import * as THREE from 'three';
 import { useStore } from '@/store';
 import { FixtureRenderer } from '@/scene/fixtures/FixtureRenderer';
@@ -80,7 +81,7 @@ export function SceneCanvas() {
         <TargetHandle setOrbitEnabled={setOrbitEnabled} />
       </TransformPreviewProvider>
 
-      <OrbitControls enabled={orbitEnabled} makeDefault zoomSpeed={0.4} />
+      <SceneOrbitControls enabled={orbitEnabled} />
     </Canvas>
   );
 }

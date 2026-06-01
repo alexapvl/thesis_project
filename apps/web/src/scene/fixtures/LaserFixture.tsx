@@ -27,7 +27,9 @@ type Props = FixtureInteractionProps & { instance: FixtureInstance };
 const PATTERN_COUNT = 3;
 const MOVE_RADIUS = 2.5;
 const MOVE_TAU = 0.12;
-const BEAM_RADIUS = 0.0018;
+const BEAM_RADIUS = 0.0035;
+const LASER_OPACITY_FLOOR = 0.35;
+const LASER_OPACITY_GAIN = 2.4;
 /** Clip beam geometry below the stage floor (y = 0). */
 const FLOOR_CLIP_PLANES = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];
 const _beamOrigin = new THREE.Vector3();
@@ -159,9 +161,12 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
         const mat = mesh.material as THREE.MeshBasicMaterial;
         const render = mapLightingFrame(instance, definition, smoothed.current, colorScratch);
         const c = render.color.clone();
-        c.setHSL(c.getHSL({ h: 0, s: 0, l: 0 }).h, 1, 0.55);
+        c.setHSL(c.getHSL({ h: 0, s: 0, l: 0 }).h, 1, 0.72);
         mat.color.copy(c);
-        mat.opacity = render.intensity > 0 ? Math.min(0.9, render.intensity * 0.85) : 0;
+        mat.opacity =
+          render.intensity > 0
+            ? Math.min(1, LASER_OPACITY_FLOOR + render.intensity * LASER_OPACITY_GAIN)
+            : 0;
       });
     }
   });
@@ -197,7 +202,7 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
       <group ref={headRef} position={[0, 0, 0]}>
         <mesh>
           <boxGeometry args={[0.14, 0.1, 0.14]} />
-          <meshStandardMaterial color="#0f172a" emissive="#22d3ee" emissiveIntensity={0.2} />
+          <meshStandardMaterial color="#0f172a" emissive="#22d3ee" emissiveIntensity={0.45} />
         </mesh>
         <group ref={beamsRef}>{beamEls}</group>
       </group>
