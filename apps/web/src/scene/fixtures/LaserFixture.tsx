@@ -139,14 +139,20 @@ export function LaserFixture({ instance, selected, hovered, onSelect, onHover }:
       const half = (beamCount - 1) / 2;
       beams.children.forEach((child, i) => {
         const mesh = child as THREE.Mesh;
+        const spread = (i - half) / Math.max(1, half); // -1..1 across the fan
         let yaw = 0;
         if (patIdx === 0) {
-          yaw = ((i - half) / Math.max(1, half)) * (fanAngleRad / 2);
+          yaw = spread * (fanAngleRad / 2);
         } else if (patIdx === 1) {
-          yaw = ((i - half) / Math.max(1, half)) * fanAngleRad * Math.sin(step * 0.4);
+          yaw = spread * fanAngleRad * Math.sin(step * 0.4);
         } else {
-          yaw = (i / beamCount) * Math.PI * 2 * (step / 8) + i * 0.2;
+          // Bounded forward sweep: oscillate within the fan instead of a full
+          // revolution so beams never fire backward or sideways.
+          const phase = (step / 8) * Math.PI * 2;
+          yaw = Math.sin(phase + i * 0.6) * fanAngleRad;
         }
+        // Safety clamp: keep every beam inside the forward fan.
+        yaw = Math.max(-fanAngleRad, Math.min(fanAngleRad, yaw));
         mesh.rotation.set(0, yaw, 0);
         const len = cappedBeamLength(mesh, beamLength);
         mesh.scale.set(1, 1, len);
