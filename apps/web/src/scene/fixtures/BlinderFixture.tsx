@@ -37,7 +37,7 @@ export function BlinderFixture({ instance, selected, hovered, onSelect, onHover 
         out.push([
           (c - (cols - 1) / 2) * spacing,
           (r - (rows - 1) / 2) * spacing * 0.8,
-          0.12,
+          -0.12,
         ]);
       }
     }
@@ -65,8 +65,8 @@ export function BlinderFixture({ instance, selected, hovered, onSelect, onHover 
   const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
 
   return (
-    <group ref={groupRef} position={instance.position} rotation={instance.rotation} {...handlers}>
-      <mesh position={[0, 0, 0]}>
+    <group ref={groupRef} {...handlers}>
+      <mesh position={[0, 0, 0.04]}>
         <boxGeometry args={[0.5 + cols * 0.1, 0.4 + rows * 0.08, 0.08]} />
         <meshStandardMaterial color="#1e293b" metalness={0.4} roughness={0.6} />
       </mesh>
@@ -84,8 +84,8 @@ export function BlinderFixture({ instance, selected, hovered, onSelect, onHover 
         </mesh>
       ))}
       {hovered && !selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[0.55 + cols * 0.1, 0.45 + rows * 0.08, 0.12]} />
+        <mesh raycast={() => null} position={[0, 0, -0.12]}>
+          <boxGeometry args={[0.55 + cols * 0.1, 0.45 + rows * 0.08, 0.04]} />
           <meshBasicMaterial color={HOVER_TINT} wireframe />
         </mesh>
       )}

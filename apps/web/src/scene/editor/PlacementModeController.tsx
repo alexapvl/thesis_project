@@ -10,9 +10,14 @@ import { instantiateFixture } from '@/scene/fixtures/instantiate';
 import { instantiateStructure } from '@/scene/structures/instantiateStructure';
 import { snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
-import { raycastFloor } from './raycastFloor';
 import { composeRotation } from './composeRotation';
 import { resolveFixtureDrop } from './resolveFixtureDrop';
+import {
+  clearStructurePlacement,
+  peekStructurePlacement,
+  rememberStructurePlacement,
+  resolveStructureFloorPlacement,
+} from './resolveStructurePlacement';
 
 function isEditableTarget(t: EventTarget | null): boolean {
   return (
@@ -66,21 +71,42 @@ export function PlacementModeController() {
       rotatePending(e.shiftKey ? 'tilt' : 'yaw');
     };
 
+    const syncStructurePlacement = (clientX: number, clientY: number) => {
+      const placement = resolveStructureFloorPlacement(
+        dom,
+        camera,
+        clientX,
+        clientY,
+        gridSnap,
+        gridSize,
+      );
+      if (placement.ok) rememberStructurePlacement(placement.pos);
+      return placement;
+    };
+
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.button !== 0 || !structureDef) return;
+      syncStructurePlacement(ev.clientX, ev.clientY);
+    };
+
     const onClick = (ev: MouseEvent) => {
       if (ev.button !== 0) return;
       const pendingRotation = useStore.getState().editor.pendingRotation;
 
       if (structureDef) {
-        const r = raycastFloor(dom, camera, ev.clientX, ev.clientY);
-        if (!r.ok) {
-          debugLog('warn', `placement skipped: ${r.reason} (tilt the camera down)`);
-          return;
+        let pos: Vec3 | null = peekStructurePlacement();
+        if (!pos) {
+          const placement = syncStructurePlacement(ev.clientX, ev.clientY);
+          if (!placement.ok) {
+            debugLog('warn', `placement skipped: ${placement.reason} (tilt the camera down)`);
+            return;
+          }
+          pos = placement.pos;
         }
-        let pos: Vec3 = [r.point[0], 0, r.point[2]];
-        if (gridSnap) pos = snapVec3(pos, gridSize);
         const inst = instantiateStructure(structureDef, newFixtureId(), pos, pendingRotation);
         dispatch({ type: 'structure.add', structure: inst });
         debugLog('info', `placed ${structureDef.label} at ${pos.map((n) => n.toFixed(2)).join(', ')}`);
+        clearStructurePlacement();
         setStructurePlacement(null);
         return;
       }
@@ -135,12 +161,15 @@ export function PlacementModeController() {
     };
 
     window.addEventListener('keydown', onKey);
+    if (structureDef) dom.addEventListener('pointerdown', onPointerDown);
     dom.addEventListener('click', onClick);
     dom.addEventListener('contextmenu', onContext);
     return () => {
       window.removeEventListener('keydown', onKey);
+      if (structureDef) dom.removeEventListener('pointerdown', onPointerDown);
       dom.removeEventListener('click', onClick);
       dom.removeEventListener('contextmenu', onContext);
+      clearStructurePlacement();
     };
   }, [
     pendingTypeId,

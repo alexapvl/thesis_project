@@ -3,6 +3,7 @@ import { TrussBasePlate } from './trussGeometry';
 import type { StructureInteractionProps } from './structure-interaction';
 import { structurePointerHandlers } from './structure-interaction';
 import { SelectionBoxes } from '@/scene/fixtures/aiming-parts';
+import { StructureRoot } from './StructureRoot';
 
 type Props = StructureInteractionProps & {
   instance: StructureInstance;
@@ -24,11 +25,11 @@ export function BasePlateStructure({
   const preview = ghost || wireframe;
 
   return (
-    <group position={instance.position} rotation={instance.rotation} {...handlers}>
+    <StructureRoot instance={instance} ghost={ghost} wireframe={wireframe} handlers={handlers}>
       <TrussBasePlate width={width} ghost={ghost} wireframe={wireframe} />
       {!preview && (
         <SelectionBoxes selected={selected} hovered={hovered} size={[width + 0.1, 0.15, width + 0.1]} />
       )}
-    </group>
+    </StructureRoot>
   );
 }

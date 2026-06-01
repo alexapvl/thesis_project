@@ -32,18 +32,18 @@ export function MatrixFixture({ instance, selected, hovered, onSelect, onHover }
   const count = gridSize * gridSize;
 
   const cellOffsets = useMemo(() => {
-    const out: { x: number; z: number; dist: number }[] = [];
+    const out: { x: number; y: number; dist: number }[] = [];
     const step = panelSize / gridSize;
     const cx = (gridSize - 1) / 2;
-    const cz = (gridSize - 1) / 2;
+    const cy = (gridSize - 1) / 2;
     for (let row = 0; row < gridSize; row++) {
       for (let col = 0; col < gridSize; col++) {
         const dx = col - cx;
-        const dz = row - cz;
+        const dy = row - cy;
         out.push({
           x: (col - cx) * step,
-          z: (row - cz) * step,
-          dist: Math.sqrt(dx * dx + dz * dz),
+          y: (cy - row) * step,
+          dist: Math.sqrt(dx * dx + dy * dy),
         });
       }
     }
@@ -54,7 +54,7 @@ export function MatrixFixture({ instance, selected, hovered, onSelect, onHover }
     const mesh = meshRef.current;
     if (!mesh) return;
     cellOffsets.forEach((cell, i) => {
-      _dummy.position.set(cell.x, 0.05, cell.z);
+      _dummy.position.set(cell.x, cell.y, -0.05);
       _dummy.updateMatrix();
       mesh.setMatrixAt(i, _dummy.matrix);
     });
@@ -86,18 +86,18 @@ export function MatrixFixture({ instance, selected, hovered, onSelect, onHover }
   const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
 
   return (
-    <group ref={groupRef} position={instance.position} rotation={instance.rotation} {...handlers}>
-      <mesh>
-        <boxGeometry args={[panelSize + 0.08, 0.06, panelSize + 0.08]} />
+    <group ref={groupRef} {...handlers}>
+      <mesh position={[0, 0, 0.03]}>
+        <boxGeometry args={[panelSize + 0.08, panelSize + 0.08, 0.06]} />
         <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.5} />
       </mesh>
       <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-        <boxGeometry args={[panelSize / gridSize * 0.75, 0.04, panelSize / gridSize * 0.75]} />
+        <boxGeometry args={[panelSize / gridSize * 0.75, panelSize / gridSize * 0.75, 0.04]} />
         <meshStandardMaterial emissive="#000000" emissiveIntensity={1} />
       </instancedMesh>
       {hovered && !selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[panelSize + 0.12, 0.12, panelSize + 0.12]} />
+        <mesh raycast={() => null} position={[0, 0, -0.06]}>
+          <boxGeometry args={[panelSize + 0.12, panelSize + 0.12, 0.04]} />
           <meshBasicMaterial color={HOVER_TINT} wireframe />
         </mesh>
       )}

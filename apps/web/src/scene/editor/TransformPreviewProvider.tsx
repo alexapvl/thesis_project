@@ -7,16 +7,17 @@ import * as THREE from 'three';
  * isn't enough to read what the new pose will look like). Document state
  * is only updated once on mouseUp so undo/redo stays per-drag.
  *
- * TransformHandles writes here on every gizmo change; the fixture
- * components read it inside useFrame and override their group's
- * position/rotation. When `fixtureId === null` the override is inactive
- * and fixtures render straight from the document.
+ * TransformHandles / StructureTransformHandles write here on every gizmo
+ * change; fixture and structure components read it inside useFrame and
+ * override their group's position/rotation. When both ids are null the
+ * override is inactive and meshes render straight from the document.
  *
  * Same pattern as SmoothedLightingProvider: a ref through context, so
  * 60 Hz drag updates do not trigger React re-renders.
  */
 export type TransformPreview = {
   fixtureId: string | null;
+  structureId: string | null;
   position: THREE.Vector3 | null;
   rotation: THREE.Euler | null;
   // Live target during a TargetHandle drag. SpotFixture reads this so
@@ -32,6 +33,7 @@ const TransformPreviewContext = createContext<TransformPreviewRef | null>(null);
 export function TransformPreviewProvider({ children }: { children: ReactNode }) {
   const ref = useRef<TransformPreview>({
     fixtureId: null,
+    structureId: null,
     position: null,
     rotation: null,
     target: null,

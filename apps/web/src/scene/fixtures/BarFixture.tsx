@@ -61,14 +61,14 @@ export function BarFixture({ instance, selected, hovered, onSelect, onHover }: P
   const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
 
   return (
-    <group ref={groupRef} position={instance.position} rotation={instance.rotation} {...handlers}>
-      <mesh>
-        <boxGeometry args={[barLength + 0.1, 0.08, 0.1]} />
+    <group ref={groupRef} {...handlers}>
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[barLength + 0.1, 0.08, 0.08]} />
         <meshStandardMaterial color="#1e293b" metalness={0.4} roughness={0.5} />
       </mesh>
       {pixelXs.map((x, i) => (
-        <mesh key={i} position={[x, 0.06, 0.02]}>
-          <boxGeometry args={[barLength / pixelCount * 0.7, 0.06, 0.06]} />
+        <mesh key={i} position={[x, 0, -0.06]}>
+          <boxGeometry args={[barLength / pixelCount * 0.7, 0.06, 0.04]} />
           <meshStandardMaterial
             ref={(m) => {
               if (m) pixelMats.current[i] = m;
@@ -80,8 +80,8 @@ export function BarFixture({ instance, selected, hovered, onSelect, onHover }: P
         </mesh>
       ))}
       {hovered && !selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[barLength + 0.15, 0.14, 0.14]} />
+        <mesh raycast={() => null} position={[0, 0, -0.08]}>
+          <boxGeometry args={[barLength + 0.15, 0.1, 0.04]} />
           <meshBasicMaterial color={HOVER_TINT} wireframe />
         </mesh>
       )}

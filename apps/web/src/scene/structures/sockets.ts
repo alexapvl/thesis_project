@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { StructureDims, StructureInstance } from '@stl/fixtures';
 import type { Vec3 } from '@/scene/document/vec3';
+import type { TransformPreview } from '@/scene/editor/TransformPreviewProvider';
+import { applyStructureWorldPose } from './structureWorldPose';
 
 export const SOCKET_SPACING = 0.5;
 
@@ -13,7 +15,22 @@ export type Socket = {
 export type MountTransform = {
   position: Vec3;
   rotation: Vec3;
+  /** World-space outward direction from the socket face. */
+  normal: Vec3;
 };
+
+export const MOUNT_AIM_DISTANCE = 8;
+export const MOUNT_AIM_DOWN_BIAS = 0.25;
+
+/** Aim point for mounted aiming fixtures: outward along socket normal. */
+export function aimPointFromMount(position: Vec3, normal: Vec3): Vec3 {
+  const downBias = normal[1] <= -0.5 ? 0 : MOUNT_AIM_DOWN_BIAS;
+  return [
+    position[0] + normal[0] * MOUNT_AIM_DISTANCE,
+    position[1] + (normal[1] - downBias) * MOUNT_AIM_DISTANCE,
+    position[2] + normal[2] * MOUNT_AIM_DISTANCE,
+  ];
+}
 
 const _euler = new THREE.Euler();
 const _q = new THREE.Quaternion();
@@ -148,11 +165,11 @@ function rotationFromNormal(nx: number, ny: number, nz: number): Vec3 {
 export function resolveMountTransform(
   structure: StructureInstance,
   socketId: string,
+  preview?: TransformPreview | null,
 ): MountTransform | null {
   const socket = socketsForStructure(structure).find((s) => s.id === socketId);
   if (!socket) return null;
-  _structObj.position.set(...structure.position);
-  _structObj.rotation.set(...structure.rotation);
+  applyStructureWorldPose(_structObj, structure, preview);
   _structObj.updateMatrixWorld(true);
 
   const worldPos = new THREE.Vector3(...socket.localPos).applyMatrix4(_structObj.matrixWorld);
@@ -163,6 +180,7 @@ export function resolveMountTransform(
   return {
     position: [worldPos.x, worldPos.y, worldPos.z],
     rotation: rotationFromNormal(worldNormal.x, worldNormal.y, worldNormal.z),
+    normal: [worldNormal.x, worldNormal.y, worldNormal.z],
   };
 }
 

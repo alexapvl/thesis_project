@@ -1,8 +1,9 @@
 import type { StructureInstance } from '@stl/fixtures';
-import { TrussBasePlate, TrussCapPlate, TrussSegment } from './trussGeometry';
+import { TrussBasePlate, TrussSegment } from './trussGeometry';
 import type { StructureInteractionProps } from './structure-interaction';
 import { structurePointerHandlers } from './structure-interaction';
 import { SelectionBoxes } from '@/scene/fixtures/aiming-parts';
+import { StructureRoot } from './StructureRoot';
 
 type Props = StructureInteractionProps & {
   instance: StructureInstance;
@@ -25,10 +26,9 @@ export function TowerStructure({
   const preview = ghost || wireframe;
 
   return (
-    <group position={instance.position} rotation={instance.rotation} {...handlers}>
+    <StructureRoot instance={instance} ghost={ghost} wireframe={wireframe} handlers={handlers}>
       <TrussBasePlate width={width} ghost={ghost} wireframe={wireframe} />
       <TrussSegment length={height} axis="y" ghost={ghost} wireframe={wireframe} />
-      <TrussCapPlate width={width} height={height} ghost={ghost} wireframe={wireframe} />
       {!preview && (
         <SelectionBoxes
           selected={selected}
@@ -37,6 +37,6 @@ export function TowerStructure({
           offset={[0, height / 2, 0]}
         />
       )}
-    </group>
+    </StructureRoot>
   );
 }

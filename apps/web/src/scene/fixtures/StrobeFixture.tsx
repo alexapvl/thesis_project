@@ -51,18 +51,18 @@ export function StrobeFixture({ instance, selected, hovered, onSelect, onHover }
   const handlers = fixturePointerHandlers(instance.id, onSelect, onHover);
 
   return (
-    <group ref={groupRef} position={instance.position} rotation={instance.rotation} {...handlers}>
-      <mesh>
-        <boxGeometry args={[0.35, 0.28, 0.12]} />
+    <group ref={groupRef} {...handlers}>
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[0.35, 0.28, 0.08]} />
         <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.4} />
       </mesh>
-      <mesh position={[0, 0, 0.07]}>
+      <mesh position={[0, 0, -0.07]} rotation={[0, 0, 0]}>
         <planeGeometry args={[0.3, 0.22]} />
         <meshStandardMaterial ref={panelRef} color="#1e293b" emissive="#000000" emissiveIntensity={0} />
       </mesh>
       {hovered && !selected && (
-        <mesh raycast={() => null}>
-          <boxGeometry args={[0.4, 0.32, 0.16]} />
+        <mesh raycast={() => null} position={[0, 0, -0.1]}>
+          <boxGeometry args={[0.4, 0.32, 0.04]} />
           <meshBasicMaterial color={HOVER_TINT} wireframe />
         </mesh>
       )}

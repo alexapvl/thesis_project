@@ -28,7 +28,11 @@ export function useFixtureBase(instance: FixtureInstance) {
       if (instance.mount) {
         const structure = structures.find((s) => s.id === instance.mount!.structureId);
         if (structure) {
-          const resolved = resolveMountTransform(structure, instance.mount.socketId);
+          const resolved = resolveMountTransform(
+            structure,
+            instance.mount.socketId,
+            preview.current,
+          );
           if (resolved) {
             g.position.set(...resolved.position);
             g.rotation.set(...resolved.rotation);

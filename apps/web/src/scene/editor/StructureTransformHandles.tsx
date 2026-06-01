@@ -5,6 +5,7 @@ import { useStore } from '@/store';
 import { snap, snapVec3 } from '@/scene/document/snap';
 import type { Vec3 } from '@/scene/document/reducer';
 import { isInRange } from './raycastFloor';
+import { useTransformPreview } from './TransformPreviewProvider';
 
 type Mode = 'translate' | 'rotate';
 
@@ -24,6 +25,7 @@ export function StructureTransformHandles({ mode, setOrbitEnabled }: Props) {
     (s) => s.editor.pendingFixtureTypeId ?? s.editor.pendingStructureTypeId,
   );
   const debugLog = useStore((s) => s.debugLog);
+  const preview = useTransformPreview();
 
   const proxy = useMemo(() => new THREE.Object3D(), []);
   const ref = useRef<THREE.Object3D>(proxy);
@@ -48,14 +50,26 @@ export function StructureTransformHandles({ mode, setOrbitEnabled }: Props) {
         onMouseDown={() => {
           dragging.current = true;
           setOrbitEnabled(false);
+          preview.current.fixtureId = null;
+          preview.current.structureId = selected.id;
         }}
         onObjectChange={() => {
-          if (!dragging.current || mode !== 'translate') return;
-          proxy.position.y = 0;
+          if (!dragging.current) return;
+          if (mode === 'translate') {
+            proxy.position.y = 0;
+            preview.current.position = proxy.position.clone();
+            preview.current.rotation = null;
+          } else {
+            preview.current.rotation = proxy.rotation.clone();
+            preview.current.position = null;
+          }
         }}
         onMouseUp={() => {
           dragging.current = false;
           setOrbitEnabled(true);
+          preview.current.structureId = null;
+          preview.current.position = null;
+          preview.current.rotation = null;
           if (!selected) return;
           if (mode === 'translate') {
             if (!isInRange(proxy.position)) {

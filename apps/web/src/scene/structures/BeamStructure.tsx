@@ -3,6 +3,7 @@ import { TrussSegment } from './trussGeometry';
 import type { StructureInteractionProps } from './structure-interaction';
 import { structurePointerHandlers } from './structure-interaction';
 import { SelectionBoxes } from '@/scene/fixtures/aiming-parts';
+import { StructureRoot } from './StructureRoot';
 
 type Props = StructureInteractionProps & {
   instance: StructureInstance;
@@ -24,7 +25,7 @@ export function BeamStructure({
   const preview = ghost || wireframe;
 
   return (
-    <group position={instance.position} rotation={instance.rotation} {...handlers}>
+    <StructureRoot instance={instance} ghost={ghost} wireframe={wireframe} handlers={handlers}>
       <TrussSegment length={length} axis="z" ghost={ghost} wireframe={wireframe} />
       {!preview && (
         <SelectionBoxes
@@ -34,6 +35,6 @@ export function BeamStructure({
           offset={[0, 0.15, length / 2]}
         />
       )}
-    </group>
+    </StructureRoot>
   );
 }

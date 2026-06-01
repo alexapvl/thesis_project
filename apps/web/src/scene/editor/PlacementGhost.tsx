@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useThree } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import {
   BUILTIN_FIXTURES,
@@ -26,13 +26,77 @@ import { BasePlateStructure } from '@/scene/structures/BasePlateStructure';
 import { instantiateStructure } from '@/scene/structures/instantiateStructure';
 import { composeRotation } from './composeRotation';
 import { resolveFixtureDrop } from './resolveFixtureDrop';
-import { raycastFloor } from './raycastFloor';
+import {
+  clearStructurePlacement,
+  rememberStructurePlacement,
+  resolveStructureFloorPlacement,
+} from './resolveStructurePlacement';
 
 const WIREFRAME = '#fbbf24';
 const wireframeMat = { color: WIREFRAME, wireframe: true, transparent: true, opacity: 0.85 };
 
 /** Head pitched so lens (-Z) points at the default floor target below. */
 const GHOST_HEAD_DOWN: [number, number, number] = [-Math.PI / 2, 0, 0];
+
+const LASER_GHOST_BEAMS = 5;
+
+function LaserGhostBeams() {
+  const half = (LASER_GHOST_BEAMS - 1) / 2;
+  return Array.from({ length: LASER_GHOST_BEAMS }, (_, i) => {
+    const yaw = ((i - half) / Math.max(1, half)) * (Math.PI / 6);
+    return (
+      <mesh key={i} position={[0, 0, -0.1]} rotation={[Math.PI / 2, yaw, 0]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.35, 6]} />
+        <meshStandardMaterial {...wireframeMat} />
+      </mesh>
+    );
+  });
+}
+
+function LaserGhostStatic() {
+  return (
+    <>
+      <mesh position={[0, -0.15, 0]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial {...wireframeMat} />
+      </mesh>
+      <group rotation={[-0.45, 0, 0]}>
+        <mesh>
+          <boxGeometry args={[0.14, 0.1, 0.14]} />
+          <meshStandardMaterial {...wireframeMat} />
+        </mesh>
+        <LaserGhostBeams />
+      </group>
+    </>
+  );
+}
+
+function LaserGhostAiming({ target }: { target: THREE.Vector3 }) {
+  const headRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    const head = headRef.current;
+    if (!head) return;
+    head.lookAt(target);
+    head.rotateY(Math.PI);
+  });
+
+  return (
+    <>
+      <mesh position={[0, -0.15, 0]}>
+        <boxGeometry args={[0.2, 0.1, 0.2]} />
+        <meshStandardMaterial {...wireframeMat} />
+      </mesh>
+      <group ref={headRef}>
+        <mesh>
+          <boxGeometry args={[0.14, 0.1, 0.14]} />
+          <meshStandardMaterial {...wireframeMat} />
+        </mesh>
+        <LaserGhostBeams />
+      </group>
+    </>
+  );
+}
 
 function AimingBodyGhost({ kind }: { kind: FixtureKind }) {
   const staticPart =
@@ -73,7 +137,7 @@ function AimingGhost({
 }) {
   return (
     <>
-      <AimingBodyGhost kind={kind} />
+      {kind === 'laser' ? <LaserGhostAiming target={target} /> : <AimingBodyGhost kind={kind} />}
       <line>
         <bufferGeometry
           attach="geometry"
@@ -100,46 +164,71 @@ function KindGhost({ kind }: { kind: FixtureKind }) {
   switch (kind) {
     case 'bar':
       return (
-        <mesh>
-          <boxGeometry args={[1.6, 0.12, 0.12]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
+        <>
+          <mesh position={[0, 0, 0.04]}>
+            <boxGeometry args={[1.7, 0.08, 0.08]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+          <mesh position={[0, 0, -0.06]}>
+            <boxGeometry args={[1.5, 0.05, 0.02]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+        </>
       );
     case 'matrix':
       return (
-        <mesh>
-          <boxGeometry args={[1.4, 0.1, 1.4]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
+        <>
+          <mesh position={[0, 0, 0.03]}>
+            <boxGeometry args={[1.48, 1.48, 0.06]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+          <mesh position={[0, 0, -0.05]}>
+            <planeGeometry args={[1.2, 1.2]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+        </>
       );
     case 'blinder':
       return (
-        <mesh>
-          <boxGeometry args={[0.5, 0.4, 0.1]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
+        <>
+          <mesh position={[0, 0, 0.04]}>
+            <boxGeometry args={[0.5, 0.4, 0.08]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+          <mesh position={[0, 0, -0.12]}>
+            <boxGeometry args={[0.45, 0.35, 0.04]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+        </>
       );
     case 'strobe':
       return (
-        <mesh>
-          <boxGeometry args={[0.35, 0.28, 0.12]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
+        <>
+          <mesh position={[0, 0, 0.04]}>
+            <boxGeometry args={[0.35, 0.28, 0.08]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+          <mesh position={[0, 0, -0.07]}>
+            <planeGeometry args={[0.3, 0.22]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+        </>
       );
     case 'par':
       return (
-        <mesh rotation={[-Math.PI / 6, 0, 0]}>
-          <cylinderGeometry args={[0.14, 0.18, 0.22, 16]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
+        <>
+          <mesh position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.17, 0.19, 0.1, 16]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+          <mesh position={[0, 0, -0.05]} rotation={[Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.18, 16]} />
+            <meshStandardMaterial {...wireframeMat} />
+          </mesh>
+        </>
       );
     case 'laser':
-      return (
-        <mesh>
-          <boxGeometry args={[0.2, 0.15, 0.2]} />
-          <meshStandardMaterial {...wireframeMat} />
-        </mesh>
-      );
+      return <LaserGhostStatic />;
     case 'point':
       return (
         <mesh>
@@ -185,7 +274,15 @@ function StructureGhost({ kind }: { kind: StructureKind }) {
 
 type PreviewState =
   | { kind: 'structure'; pos: Vec3; structureKind: StructureKind }
-  | { kind: 'fixture'; pos: Vec3; rotation?: Vec3; onGround: boolean; fixtureKind: FixtureKind; aims: boolean }
+  | {
+      kind: 'fixture';
+      pos: Vec3;
+      rotation?: Vec3;
+      onGround: boolean;
+      fixtureKind: FixtureKind;
+      aims: boolean;
+      aimTarget?: Vec3;
+    }
   | null;
 
 export function PlacementGhost() {
@@ -205,25 +302,37 @@ export function PlacementGhost() {
     const pendingTypeId = pendingStructureTypeId ?? pendingFixtureTypeId;
     if (!pendingTypeId) {
       setPreview(null);
+      clearStructurePlacement();
       return;
     }
     const dom = gl.domElement;
     const isStructure = pendingStructureTypeId != null;
 
+    const updateStructurePreview = (clientX: number, clientY: number) => {
+      const sdef = BUILTIN_STRUCTURES.find((d) => d.typeId === pendingStructureTypeId);
+      if (!sdef) return;
+      const placement = resolveStructureFloorPlacement(
+        dom,
+        camera,
+        clientX,
+        clientY,
+        gridSnap,
+        gridSize,
+      );
+      if (!placement.ok) {
+        setPreview(null);
+        clearStructurePlacement();
+        return;
+      }
+      rememberStructurePlacement(placement.pos);
+      setPreview({ kind: 'structure', pos: placement.pos, structureKind: sdef.kind });
+    };
+
     const onMove = (ev: MouseEvent) => {
       overRef.current = true;
 
       if (isStructure) {
-        const sdef = BUILTIN_STRUCTURES.find((d) => d.typeId === pendingStructureTypeId);
-        if (!sdef) return;
-        const r = raycastFloor(dom, camera, ev.clientX, ev.clientY);
-        if (!r.ok) {
-          setPreview(null);
-          return;
-        }
-        let pos: Vec3 = [r.point[0], 0, r.point[2]];
-        if (gridSnap) pos = snapVec3(pos, gridSize);
-        setPreview({ kind: 'structure', pos, structureKind: sdef.kind });
+        updateStructurePreview(ev.clientX, ev.clientY);
         return;
       }
 
@@ -252,6 +361,7 @@ export function PlacementGhost() {
           onGround: false,
           fixtureKind: def.kind,
           aims,
+          aimTarget: drop.aimTarget,
         });
       } else {
         let pos = drop.position;
@@ -266,16 +376,25 @@ export function PlacementGhost() {
       }
     };
 
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.button !== 0 || !isStructure) return;
+      updateStructurePreview(ev.clientX, ev.clientY);
+    };
+
     const onLeave = () => {
       overRef.current = false;
       setPreview(null);
+      if (isStructure) clearStructurePlacement();
     };
 
     dom.addEventListener('mousemove', onMove);
+    dom.addEventListener('pointerdown', onPointerDown);
     dom.addEventListener('mouseleave', onLeave);
     return () => {
       dom.removeEventListener('mousemove', onMove);
+      dom.removeEventListener('pointerdown', onPointerDown);
       dom.removeEventListener('mouseleave', onLeave);
+      clearStructurePlacement();
     };
   }, [
     pendingFixtureTypeId,
@@ -297,23 +416,20 @@ export function PlacementGhost() {
     );
   }
 
-  const { pos, fixtureKind, aims, onGround } = preview;
+  const { pos, fixtureKind, aims, onGround, aimTarget } = preview;
   const baseRot = preview.rotation ?? [0, 0, 0];
   const rot = composeRotation(baseRot, pendingRotation);
   const target = aims
     ? onGround
       ? new THREE.Vector3(pos[0] + 4, pos[1] + 2, pos[2])
-      : new THREE.Vector3(pos[0], 0, pos[2])
+      : aimTarget
+        ? new THREE.Vector3(aimTarget[0], aimTarget[1], aimTarget[2])
+        : new THREE.Vector3(pos[0], 0, pos[2])
     : null;
-  const isKnownAiming =
-    fixtureKind === 'spot' || fixtureKind === 'wash' || fixtureKind === 'beam';
-
   return (
     <group position={pos} rotation={rot}>
-      {aims && target && isKnownAiming ? (
+      {aims && target ? (
         <AimingGhost target={target} pos={pos} kind={fixtureKind} />
-      ) : aims && target ? (
-        <AimingGhost target={target} pos={pos} kind="spot" />
       ) : (
         <KindGhost kind={fixtureKind} />
       )}

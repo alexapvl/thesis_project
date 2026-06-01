@@ -10,10 +10,9 @@ import { useStore } from '@/store';
 import { instantiateFixture } from '@/scene/fixtures/instantiate';
 import { instantiateStructure } from '@/scene/structures/instantiateStructure';
 import { snapVec3 } from '@/scene/document/snap';
-import type { Vec3 } from '@/scene/document/reducer';
-import { raycastFloor } from './raycastFloor';
 import { composeRotation } from './composeRotation';
 import { resolveFixtureDrop } from './resolveFixtureDrop';
+import { resolveStructureFloorPlacement } from './resolveStructurePlacement';
 
 export const FIXTURE_DRAG_MIME = 'application/x-stl-fixture-typeid';
 
@@ -53,13 +52,19 @@ export function DragPlacementController() {
           debugLog('warn', `dropped unknown structure typeId: ${typeId}`);
           return;
         }
-        const r = raycastFloor(dom, ref.current.camera, ev.clientX, ev.clientY);
-        if (!r.ok) {
-          debugLog('warn', `drop ignored: ${r.reason} (tilt the camera down)`);
+        const placement = resolveStructureFloorPlacement(
+          dom,
+          ref.current.camera,
+          ev.clientX,
+          ev.clientY,
+          gridSnap,
+          gridSize,
+        );
+        if (!placement.ok) {
+          debugLog('warn', `drop ignored: ${placement.reason} (tilt the camera down)`);
           return;
         }
-        let pos: Vec3 = [r.point[0], 0, r.point[2]];
-        if (gridSnap) pos = snapVec3(pos, gridSize);
+        const pos = placement.pos;
         const pendingRotation = useStore.getState().editor.pendingRotation;
         const inst = instantiateStructure(def, newFixtureId(), pos, pendingRotation);
         dispatch({ type: 'structure.add', structure: inst });

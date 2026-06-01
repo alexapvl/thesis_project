@@ -79,6 +79,7 @@ export function TransformHandles({ mode, setOrbitEnabled }: Props) {
           dragging.current = true;
           setOrbitEnabled(false);
           preview.current.fixtureId = selected.id;
+          preview.current.structureId = null;
           nearestMount.current = null;
         }}
         onObjectChange={() => {

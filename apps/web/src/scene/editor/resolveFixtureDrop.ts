@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { StructureInstance } from '@stl/fixtures';
 import type { Vec3 } from '@/scene/document/vec3';
 import {
+  aimPointFromMount,
   findSocketAlongRay,
   resolveMountTransform,
   SOCKET_RAY_THRESHOLD,
@@ -18,6 +19,8 @@ export type FixtureDrop =
       socketId: string;
       position: Vec3;
       rotation: Vec3;
+      normal: Vec3;
+      aimTarget: Vec3;
     }
   | { kind: 'ground'; position: Vec3 }
   | { kind: 'none'; reason: string };
@@ -58,6 +61,8 @@ export function resolveFixtureDrop(
         socketId: socketHit.socket.id,
         position: resolved.position,
         rotation: resolved.rotation,
+        normal: resolved.normal,
+        aimTarget: aimPointFromMount(resolved.position, resolved.normal),
       };
     }
   }

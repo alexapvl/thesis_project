@@ -1,10 +1,12 @@
-import type {
-  FixtureGroup,
-  FixtureInstance,
-  SceneDocument,
-  StructureInstance,
+import {
+  BUILTIN_FIXTURES,
+  fixturePlacementMeta,
+  type FixtureGroup,
+  type FixtureInstance,
+  type SceneDocument,
+  type StructureInstance,
 } from '@stl/fixtures';
-import { resolveMountTransform } from '@/scene/structures/sockets';
+import { aimPointFromMount, resolveMountTransform } from '@/scene/structures/sockets';
 
 export type { Vec3 } from './vec3';
 import type { Vec3 } from './vec3';
@@ -110,16 +112,21 @@ export function applyAction(doc: SceneDocument, action: SceneAction): SceneDocum
       if (!resolved) return doc;
       return {
         ...doc,
-        fixtures: doc.fixtures.map((f) =>
-          f.id === action.id
-            ? {
-                ...f,
-                mount: { structureId: action.structureId, socketId: action.socketId },
-                position: resolved.position,
-                rotation: resolved.rotation,
-              }
-            : f,
-        ),
+        fixtures: doc.fixtures.map((f) => {
+          if (f.id !== action.id) return f;
+          const def = BUILTIN_FIXTURES.find((d) => d.typeId === f.definitionId);
+          const aims = def ? fixturePlacementMeta(def).aims : false;
+          const target = aims
+            ? aimPointFromMount(resolved.position, resolved.normal)
+            : f.target;
+          return {
+            ...f,
+            mount: { structureId: action.structureId, socketId: action.socketId },
+            position: resolved.position,
+            rotation: resolved.rotation,
+            target,
+          };
+        }),
         selectedFixtureId: action.id,
         selectedStructureId: null,
       };
