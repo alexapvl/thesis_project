@@ -10,4 +10,4 @@ backend-mac:
 	cd services/inference && STL_DEVICE=mps conda run -n uni --no-capture-output python run_dev.py
 
 tunnel:
-	ssh -N -L 8000:localhost:8000 $(WIN_SSH)
+	ssh -N -L 8000:127.0.0.1:8000 $(WIN_SSH)
