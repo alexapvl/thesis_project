@@ -106,6 +106,38 @@ def has_required_weights(weights_dir: Path) -> bool:
     return all((weights_dir / name).exists() for name in required_weight_files())
 
 
+def select_torch_device(torch: Any, preference: str) -> Any:
+    """Pick a torch device from settings.device (auto|cuda|mps|cpu)."""
+    pref = preference.strip().lower()
+    if pref not in {"auto", "cuda", "mps", "cpu"}:
+        log.warning("Unknown STL_DEVICE=%r; using auto", preference)
+        pref = "auto"
+
+    def auto_device() -> Any:
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+
+    if pref == "auto":
+        return auto_device()
+
+    if pref == "cuda":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        log.warning("STL_DEVICE=cuda requested but CUDA unavailable; falling back to auto")
+        return auto_device()
+
+    if pref == "mps":
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            return torch.device("mps")
+        log.warning("STL_DEVICE=mps requested but MPS unavailable; falling back to auto")
+        return auto_device()
+
+    return torch.device("cpu")
+
+
 class SkipBartGenerator:
     """Wraps ML_BART + ML_Classifier so it satisfies the SkipBartAdapter Protocol."""
 
@@ -159,15 +191,10 @@ class SkipBartGenerator:
                 "Download trained.zip from https://huggingface.co/RS2002/Skip-BART"
             )
 
-        # Prefer CUDA, then Apple MPS (M-series Macs), then CPU. MPS coverage
+        # STL_DEVICE controls device selection (auto|cuda|mps|cpu). MPS coverage
         # in transformers/peft is good but not 100%; PYTORCH_ENABLE_MPS_FALLBACK=1
         # makes unsupported ops silently fall back to CPU instead of erroring.
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
+        device = select_torch_device(torch, settings.device)
 
         bartconfig = BartConfig(
             max_position_embeddings=ARCH_MAX_LEN,

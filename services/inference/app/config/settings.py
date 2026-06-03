@@ -57,5 +57,9 @@ class Settings(BaseSettings):
     # inference is too slow for hard real-time, so it stays opt-in.
     use_real_skip_bart: bool = False
 
+    # Inference device for torch models: auto (cuda→mps→cpu), or force
+    # cuda / mps / cpu. Set STL_DEVICE=mps on Mac, STL_DEVICE=cuda on Windows.
+    device: str = "auto"
+
 
 settings = Settings()
