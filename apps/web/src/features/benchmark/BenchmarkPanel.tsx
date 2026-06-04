@@ -10,6 +10,9 @@ export function BenchmarkPanel() {
   const [durationSec, setDurationSec] = useState('60');
   const [error, setError] = useState<string | null>(null);
   const [, force] = useState(0);
+  const transportStatus = useStore((s) => s.transport.status);
+  const fileName = useStore((s) => s.playback.fileName);
+  const setPlaying = useStore((s) => s.playbackSetPlaying);
 
   useEffect(() => {
     if (!open) return;
@@ -33,9 +36,6 @@ export function BenchmarkPanel() {
 
   const status = benchmarkController.getStatus();
   const live = benchmarkController.getLiveStats();
-  const transportStatus = useStore((s) => s.transport.status);
-  const fileName = useStore((s) => s.playback.fileName);
-  const setPlaying = useStore((s) => s.playbackSetPlaying);
   const running = status === 'running' || status === 'finalizing';
   const canRun = fileName != null && transportStatus === 'connected';
 
