@@ -51,12 +51,27 @@ export const clientPingSchema = envelopeSchema.extend({
 });
 export type ClientPing = z.infer<typeof clientPingSchema>;
 
+export const benchStartSchema = envelopeSchema.extend({
+  type: z.literal('bench.start'),
+  runId: z.string(),
+  configLabel: z.string(),
+});
+export type BenchStart = z.infer<typeof benchStartSchema>;
+
+export const benchStopSchema = envelopeSchema.extend({
+  type: z.literal('bench.stop'),
+  runId: z.string(),
+});
+export type BenchStop = z.infer<typeof benchStopSchema>;
+
 export const upstreamMessageSchema = z.discriminatedUnion('type', [
   sessionInitSchema,
   audioChunkSchema,
   sessionSeekSchema,
   sessionStopSchema,
   clientPingSchema,
+  benchStartSchema,
+  benchStopSchema,
 ]);
 export type UpstreamMessage = z.infer<typeof upstreamMessageSchema>;
 
@@ -85,6 +100,10 @@ export const beatUpdateSchema = envelopeSchema.extend({
   // this keeps fixture movement at the right cadence on tracks where
   // the model misses beats. Real beats resync the predictor's phase.
   synthetic: z.boolean().optional(),
+  // Frontend clock time (ms) of the audio chunk that produced this beat.
+  // Used for end-to-end latency measurement on the client.
+  originChunkTimestampMs: z.number().optional(),
+  serverProcessingMs: z.number().optional(),
 });
 export type BeatUpdate = z.infer<typeof beatUpdateSchema>;
 
@@ -102,8 +121,32 @@ export const lightingUpdateSchema = envelopeSchema.extend({
   beatPulse: z.number().min(0).max(1).nullable(),
   intensity: z.number().min(0).max(1).nullable(),
   confidence: z.number().min(0).max(1).nullable(),
+  originChunkTimestampMs: z.number().optional(),
+  serverProcessingMs: z.number().optional(),
 });
 export type LightingUpdate = z.infer<typeof lightingUpdateSchema>;
+
+const stageSummarySchema = z.object({
+  count: z.number().int(),
+  n: z.number().int(),
+  min_ms: z.number(),
+  p50_ms: z.number(),
+  p95_ms: z.number(),
+  max_ms: z.number(),
+  avg_ms: z.number(),
+});
+
+export const metricsReportSchema = envelopeSchema.extend({
+  type: z.literal('metrics.report'),
+  runId: z.string(),
+  stages: z.record(stageSummarySchema),
+  stageSamples: z.record(z.array(z.number())),
+  chunksReceived: z.number().int().nonnegative(),
+  device: z.string(),
+  beatTrackerKind: z.string(),
+  skipBartKind: z.string(),
+});
+export type MetricsReport = z.infer<typeof metricsReportSchema>;
 
 export const inferenceStatusSchema = envelopeSchema.extend({
   type: z.literal('inference.status'),
@@ -132,5 +175,6 @@ export const downstreamMessageSchema = z.discriminatedUnion('type', [
   inferenceStatusSchema,
   serverErrorSchema,
   serverPongSchema,
+  metricsReportSchema,
 ]);
 export type DownstreamMessage = z.infer<typeof downstreamMessageSchema>;

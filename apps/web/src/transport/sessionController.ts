@@ -5,11 +5,14 @@ import { TransportClient } from './client';
 import { routeDownstream } from './router';
 import {
   buildAudioChunk,
+  buildBenchStart,
+  buildBenchStop,
   buildClientPing,
   buildSessionInit,
   buildSessionSeek,
   buildSessionStop,
 } from './serializers';
+import { benchmarkController } from '@/bench/benchmarkController';
 import type { TransportEvent } from './types';
 
 type ActiveSession = {
@@ -46,6 +49,10 @@ class SessionController {
     const client = new TransportClient({ url });
     this.client = client;
     this.unsubEvents = client.on((e) => this.handleEvent(e));
+    benchmarkController.bindTransport(
+      (runId, configLabel) => this.sendBenchStart(runId, configLabel),
+      (runId) => this.sendBenchStop(runId),
+    );
     client.connect();
   }
 
@@ -113,6 +120,7 @@ class SessionController {
         playbackPositionMs,
       }),
     );
+    benchmarkController.onChunkSent();
   }
 
   seek(newPositionMs: number): void {
@@ -178,6 +186,7 @@ class SessionController {
         store.inferenceSet('idle');
       },
       'beat.update': (msg) => {
+        benchmarkController.onBeatUpdate(msg);
         const now = Date.now();
         const prev = useStore.getState().lighting;
         // Trim to a 10-second rolling window so the panel can show a
@@ -203,6 +212,7 @@ class SessionController {
         store.lightingApply({ bpm: msg.bpm, lastUpdateTimeMs: Date.now() });
       },
       'lighting.update': (msg) => {
+        benchmarkController.onLightingUpdate(msg);
         const prev = useStore.getState().lighting;
         store.lightingApply({
           hue: msg.hue,
@@ -224,10 +234,15 @@ class SessionController {
         // (outstanding ping already timed out) are ignored — they would
         // otherwise report inflated latency.
         if (this.pingInFlightAtMs != null) {
-          store.transportSetLatency(Date.now() - this.pingInFlightAtMs);
+          const rttMs = Date.now() - this.pingInFlightAtMs;
+          store.transportSetLatency(rttMs);
+          benchmarkController.onRtt(rttMs);
           this.pingInFlightAtMs = null;
           this.pingDeadlineAtMs = null;
         }
+      },
+      'metrics.report': (msg) => {
+        benchmarkController.onMetricsReport(msg);
       },
     });
   }
@@ -263,6 +278,31 @@ class SessionController {
     this.pingInFlightAtMs = now;
     this.pingDeadlineAtMs = now + SessionController.PING_TIMEOUT_MS;
     this.client.send(buildClientPing({ sessionId, sequence: this.nextSeq() }));
+  }
+
+  private sendBenchStart(runId: string, configLabel: string): void {
+    if (!this.client || this.client.getStatus() !== 'connected') return;
+    const sessionId = this.session?.id ?? 'no-session';
+    this.client.send(
+      buildBenchStart({
+        sessionId,
+        sequence: this.nextSeq(),
+        runId,
+        configLabel,
+      }),
+    );
+  }
+
+  private sendBenchStop(runId: string): void {
+    if (!this.client || this.client.getStatus() !== 'connected') return;
+    const sessionId = this.session?.id ?? 'no-session';
+    this.client.send(
+      buildBenchStop({
+        sessionId,
+        sequence: this.nextSeq(),
+        runId,
+      }),
+    );
   }
 }
 

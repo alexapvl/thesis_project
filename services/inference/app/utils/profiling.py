@@ -31,7 +31,22 @@ class StageMetrics:
         self._window = window
         self._samples: dict[str, deque[float]] = {}
         self._counts: dict[str, int] = {}
+        self._benchmark_samples: dict[str, list[float]] = {}
+        self._benchmark_active = False
         self._lock = Lock()
+
+    def begin_benchmark(self) -> None:
+        """Reset live window and start capturing every sample for export."""
+        with self._lock:
+            self._samples.clear()
+            self._counts.clear()
+            self._benchmark_samples.clear()
+            self._benchmark_active = True
+
+    def end_benchmark_capture(self) -> dict[str, list[float]]:
+        with self._lock:
+            self._benchmark_active = False
+            return {stage: list(buf) for stage, buf in self._benchmark_samples.items()}
 
     def record(self, stage: str, duration_ms: float) -> None:
         with self._lock:
@@ -41,6 +56,12 @@ class StageMetrics:
                 self._samples[stage] = buf
             buf.append(duration_ms)
             self._counts[stage] = self._counts.get(stage, 0) + 1
+            if self._benchmark_active:
+                bench = self._benchmark_samples.get(stage)
+                if bench is None:
+                    bench = []
+                    self._benchmark_samples[stage] = bench
+                bench.append(duration_ms)
 
     def summary(self) -> dict[str, dict[str, float | int]]:
         with self._lock:
@@ -65,6 +86,10 @@ class StageMetrics:
         with self._lock:
             self._samples.clear()
             self._counts.clear()
+
+    def dump_samples(self) -> dict[str, list[float]]:
+        with self._lock:
+            return {stage: list(buf) for stage, buf in self._samples.items()}
 
 
 metrics = StageMetrics()

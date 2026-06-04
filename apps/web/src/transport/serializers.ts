@@ -2,6 +2,8 @@ import {
   CANONICAL_SAMPLE_RATE,
   PROTOCOL_VERSION,
   type AudioChunk,
+  type BenchStart,
+  type BenchStop,
   type ClientPing,
   type SessionInit,
   type SessionSeek,
@@ -92,5 +94,31 @@ export function buildClientPing(args: { sessionId: string; sequence: number }): 
   return {
     type: 'client.ping',
     ...envelope(args),
+  };
+}
+
+export function buildBenchStart(args: {
+  sessionId: string;
+  sequence: number;
+  runId: string;
+  configLabel: string;
+}): BenchStart {
+  return {
+    type: 'bench.start',
+    ...envelope(args),
+    runId: args.runId,
+    configLabel: args.configLabel,
+  };
+}
+
+export function buildBenchStop(args: {
+  sessionId: string;
+  sequence: number;
+  runId: string;
+}): BenchStop {
+  return {
+    type: 'bench.stop',
+    ...envelope(args),
+    runId: args.runId,
   };
 }

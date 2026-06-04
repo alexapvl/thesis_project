@@ -9,6 +9,7 @@ test the whole flow without a network.
 from __future__ import annotations
 
 import base64
+import time
 
 from app.adapters.base import BeatTrackerAdapter, SkipBartAdapter
 from app.api.schemas import (
@@ -59,6 +60,37 @@ SYNTH_MIN_GAP_FRACTION = 0.6
 
 
 DownstreamEnvelope = SessionReady | BeatUpdate | TempoUpdate | LightingUpdate | InferenceStatus
+
+
+def _stamp_diagnostics(
+    envelopes: list[DownstreamEnvelope],
+    origin_chunk_timestamp_ms: float,
+    server_processing_ms: float,
+) -> list[DownstreamEnvelope]:
+    """Attach benchmark fields to beat/lighting updates from one chunk."""
+    stamped: list[DownstreamEnvelope] = []
+    for env in envelopes:
+        if isinstance(env, BeatUpdate):
+            stamped.append(
+                env.model_copy(
+                    update={
+                        "originChunkTimestampMs": origin_chunk_timestamp_ms,
+                        "serverProcessingMs": server_processing_ms,
+                    }
+                )
+            )
+        elif isinstance(env, LightingUpdate):
+            stamped.append(
+                env.model_copy(
+                    update={
+                        "originChunkTimestampMs": origin_chunk_timestamp_ms,
+                        "serverProcessingMs": server_processing_ms,
+                    }
+                )
+            )
+        else:
+            stamped.append(env)
+    return stamped
 
 
 class SessionPipeline:
@@ -160,6 +192,8 @@ class SessionPipeline:
         state = self._state
         if state is None:
             return []
+
+        handler_start = time.perf_counter()
 
         try:
             pcm_bytes = base64.b64decode(msg.pcm, validate=True)
@@ -323,7 +357,8 @@ class SessionPipeline:
             )
             state.inference_running_announced = True
 
-        return out
+        server_processing_ms = (time.perf_counter() - handler_start) * 1000.0
+        return _stamp_diagnostics(out, chunk.timestamp_ms, server_processing_ms)
 
     # ── introspection ────────────────────────────────────────────────────────
 

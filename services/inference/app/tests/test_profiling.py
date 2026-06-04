@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from app.utils.profiling import StageMetrics, stage_timer
+from app.utils.profiling import StageMetrics, metrics, stage_timer
 
 
 def test_stage_timer_records_into_registry() -> None:
@@ -39,3 +39,13 @@ def test_timer_records_even_when_block_raises() -> None:
     except RuntimeError:
         pass
     assert reg.summary()["oops"]["n"] == 1
+
+
+def test_begin_benchmark_captures_all_samples() -> None:
+    metrics.begin_benchmark()
+    metrics.record("skip.inference", 10.0)
+    metrics.record("skip.inference", 20.0)
+    metrics.record("skip.drain", 0.01)
+    captured = metrics.end_benchmark_capture()
+    assert captured["skip.inference"] == [10.0, 20.0]
+    assert captured["skip.drain"] == [0.01]

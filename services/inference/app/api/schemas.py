@@ -54,8 +54,19 @@ class ClientPing(Envelope):
     type: Literal["client.ping"]
 
 
+class BenchStart(Envelope):
+    type: Literal["bench.start"]
+    runId: str
+    configLabel: str
+
+
+class BenchStop(Envelope):
+    type: Literal["bench.stop"]
+    runId: str
+
+
 UpstreamMessage = Annotated[
-    Union[SessionInit, AudioChunk, SessionSeek, SessionStop, ClientPing],
+    Union[SessionInit, AudioChunk, SessionSeek, SessionStop, ClientPing, BenchStart, BenchStop],
     Field(discriminator="type"),
 ]
 
@@ -74,6 +85,8 @@ class BeatUpdate(Envelope):
     confidence: float | None = None
     isDownbeat: bool = False
     synthetic: bool = False
+    originChunkTimestampMs: float | None = None
+    serverProcessingMs: float | None = None
 
 
 class TempoUpdate(Envelope):
@@ -93,6 +106,29 @@ class LightingUpdate(Envelope):
     beatPulse: float | None = Field(default=None, ge=0, le=1)
     intensity: float | None = Field(default=None, ge=0, le=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
+    originChunkTimestampMs: float | None = None
+    serverProcessingMs: float | None = None
+
+
+class StageSummary(BaseModel):
+    count: int
+    n: int
+    min_ms: float
+    p50_ms: float
+    p95_ms: float
+    max_ms: float
+    avg_ms: float
+
+
+class MetricsReport(Envelope):
+    type: Literal["metrics.report"] = "metrics.report"
+    runId: str
+    stages: dict[str, StageSummary]
+    stageSamples: dict[str, list[float]]
+    chunksReceived: int
+    device: str
+    beatTrackerKind: str
+    skipBartKind: str
 
 
 class InferenceStatus(Envelope):

@@ -41,6 +41,9 @@ def beat_update(
     confidence: float | None,
     is_downbeat: bool = False,
     synthetic: bool = False,
+    *,
+    origin_chunk_timestamp_ms: float | None = None,
+    server_processing_ms: float | None = None,
 ) -> BeatUpdate:
     return BeatUpdate(
         version=settings.protocol_version,
@@ -51,6 +54,8 @@ def beat_update(
         confidence=confidence,
         isDownbeat=is_downbeat,
         synthetic=synthetic,
+        originChunkTimestampMs=origin_chunk_timestamp_ms,
+        serverProcessingMs=server_processing_ms,
     )
 
 
@@ -95,6 +100,8 @@ def lighting_update(
     intensity: float | None = None,
     beat_pulse: float | None = None,
     confidence: float | None = None,
+    origin_chunk_timestamp_ms: float | None = None,
+    server_processing_ms: float | None = None,
 ) -> LightingUpdate:
     return LightingUpdate(
         version=settings.protocol_version,
@@ -106,6 +113,8 @@ def lighting_update(
         beatPulse=_clamp01_opt(beat_pulse),
         intensity=_clamp01_opt(intensity),
         confidence=_clamp01_opt(confidence),
+        originChunkTimestampMs=origin_chunk_timestamp_ms,
+        serverProcessingMs=server_processing_ms,
     )
 
 

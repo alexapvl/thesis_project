@@ -365,18 +365,16 @@ class SkipBartGenerator:
             return []
         self._chunks_since_run = 0
 
-        try:
-            embeddings = self._embed(self._buffer)
-        except Exception as e:
-            log.warning("OpenL3 embedding failed: %s", e)
-            return []
-        if embeddings.shape[0] == 0:
-            return []
+        from app.utils.profiling import stage_timer  # noqa: PLC0415
 
         try:
-            hv = self._decode(embeddings)  # shape (N, 2)
+            with stage_timer("skip.inference"):
+                embeddings = self._embed(self._buffer)
+                if embeddings.shape[0] == 0:
+                    return []
+                hv = self._decode(embeddings)  # shape (N, 2)
         except Exception as e:
-            log.warning("Skip-BART decode failed: %s", e)
+            log.warning("Skip-BART inference failed: %s", e)
             return []
 
         out: list[LightingPrediction] = []

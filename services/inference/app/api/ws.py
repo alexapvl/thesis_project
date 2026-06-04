@@ -25,6 +25,7 @@ _DISCONNECT_EXCEPTIONS = (WebSocketDisconnect, ClientDisconnected)
 from app.api.schemas import UpstreamMessage
 from app.config.settings import settings
 from app.pipeline.event_builder import server_error, server_pong
+from app.services.bench_report import build_metrics_report
 from app.services.model_registry import eager_load_adapters
 from app.services.session_manager import session_manager
 from app.services.startup_validation import issues_block_startup, validate_setup
@@ -196,6 +197,45 @@ async def ws_endpoint(ws: WebSocket) -> None:
                         else next_fallback_seq()
                     )
                     await send(server_pong(sid, seq))
+
+                elif mtype == "bench.start":
+                    metrics.begin_benchmark()
+                    if session_id is not None:
+                        pipeline = session_manager.get(session_id)
+                        if pipeline is not None and pipeline.state is not None:
+                            pipeline.state.chunks_received = 0
+                    log.info(
+                        "bench.start %s",
+                        kv(session_id=session_id, run_id=msg.runId, label=msg.configLabel),
+                    )
+
+                elif mtype == "bench.stop":
+                    sid = session_id or msg.sessionId
+                    pipeline = session_manager.get(sid) if session_id else None
+                    seq = (
+                        pipeline.state.next_seq()
+                        if pipeline is not None and pipeline.state is not None
+                        else next_fallback_seq()
+                    )
+                    chunks_received = (
+                        pipeline.state.chunks_received
+                        if pipeline is not None and pipeline.state is not None
+                        else 0
+                    )
+                    stage_samples = metrics.end_benchmark_capture()
+                    log.info(
+                        "bench.stop %s",
+                        kv(session_id=session_id, run_id=msg.runId, chunks=chunks_received),
+                    )
+                    await send(
+                        build_metrics_report(
+                            sid,
+                            seq,
+                            msg.runId,
+                            chunks_received,
+                            stage_samples=stage_samples,
+                        )
+                    )
 
             except _DISCONNECT_EXCEPTIONS:
                 # Client went away while we were mid-handler. Don't try to

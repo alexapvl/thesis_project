@@ -6,3 +6,5 @@ Envelope: `{ type, version, sessionId, timestampMs, sequence }`.
 Canonical audio: mono, 48 kHz, Float32 PCM (base64-encoded over the wire).
 
 See `PLAN.md` § Protocol contract.
+
+Benchmark/debug messages (optional fields on `beat.update` / `lighting.update`; upstream `bench.start` / `bench.stop`; downstream `metrics.report`).
