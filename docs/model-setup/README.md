@@ -100,9 +100,25 @@ All paths come from `app/config/settings.py` and are overridable via environment
 | `STL_REQUIRE_REAL_MODELS` | `false` |
 | `STL_USE_REAL_BEAT_TRACKER` | `true` |
 | `STL_USE_REAL_SKIP_BART` | `false` |
+| `STL_DEVICE` | `auto` (`cuda` → `mps` → `cpu`) |
 
 Run `python services/inference/app/scripts/print_config.py` to dump the resolved values.
 
-## CUDA notes (optional)
+## CUDA
 
-CPU path must work first. CUDA-specific torch builds are out of scope for the v1 baseline; document them here once needed. Both `BeatNet` and the Skip-BART adapter auto-select `device='cuda'` when `torch.cuda.is_available()` returns true; flip the BeatNet constructor in `app/adapters/beatnet_adapter.py` if you need to force the device.
+The CPU baseline above must still work first (CI, Mac dev without a GPU). CUDA is in scope and recommended for real-time Skip-BART on machines with an NVIDIA GPU.
+
+### PyTorch with CUDA
+
+The `uni` conda env may ship a CPU-only `torch` build. On Windows or Linux with an NVIDIA driver installed, reinstall torch with the matching [CUDA wheel](https://pytorch.org/get-started/locally/) before enabling Skip-BART:
+
+```bash
+conda activate uni
+# Example: CUDA 12.4 — pick the index URL that matches your driver/toolkit
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+### Device selection
+
+`STL_DEVICE` controls where torch models run: `auto` (default), `cuda`, `mps`, or `cpu`. With `auto`, adapters pick `cuda` when `torch.cuda.is_available()`, else `mps` on Apple Silicon, else `cpu`. Skip-BART reads this from `app/config/settings.py`. Examples: `STL_DEVICE=cuda` on Windows (`services/inference/run_windows.bat`), `STL_DEVICE=mps` on Mac (root `Makefile`).
